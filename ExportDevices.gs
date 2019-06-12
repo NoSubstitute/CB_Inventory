@@ -12,7 +12,6 @@ function exportCBs()
   // Set the active sheet be the one called "Sheets".
 var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Devices');
   // Create an array with the following columns.
-  //var deviceArray = [["Org Unit Path","Serial Number","OS Version","Most Recent User","Last Sync","Status","Location","AssetID","User","Notes"]];
   var deviceArray = [["Serial Number","Org Unit Path","Location","AssetID","User","Notes","OS Version","Most Recent User","Last Sync","Status"]];
   // Start a "page" sequence, so the process can run for a very long time and manage lots of data. If you don't you will quickly error or time-out.
 var pageToken, page;
