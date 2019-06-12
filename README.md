@@ -29,6 +29,7 @@ Click the link with your Chromebook admin (often superadmin) account.
 Remove Copy of and  - Template from name of spreadsheet.
 
 Try to run CB Inventory / 1. Export CBs. It should ask for authorisation.
+
 Allow access to your superadmin/CB Admin account. Else nothing will work.
 
 The script will run and try to download all your CBs' data to the sheet called Devices.
