@@ -36,5 +36,4 @@ All headers have small comments on what you can do and shouldn't.
 
 https://docs.google.com/spreadsheets/d/13LY-vPYSpr-hSTy7fIzg9Y7nASiGbNzqegaaVaaYd3s/copy 
 
-If you don't want to create a Sheet copy, the two scripts will also be available here in this repo.
-Just give me a couple of minutes to fix that. :-)
+If you don't want to create a Sheet copy, the two scripts are also available here in this repo.
