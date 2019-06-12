@@ -1,4 +1,6 @@
 function updateChromebook() {
+  // Get User/Operator Info
+  var userEmail = Session.getActiveUser().getEmail()
   // Get the current spreadsheet
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   // Set the first (0) sheet as the sheet we're working in
@@ -45,7 +47,7 @@ function updateChromebook() {
               // I think running this as a single command is faster. if you want them as separate commands, you can comment these two lines and enable the ten above instead.
               // Maybe you want to even run them as separate functions! That way you could choose to update only certain field/s regardless if the other cells have content or not.
               var updatecb = AdminDirectory.Chromeosdevices.update({orgUnitPath:ou, notes:note, annotatedUser:user, annotatedAssetId:asset, annotatedLocation:room},'my_customer',id);
-              logsheet.appendRow([serno, "Everything applied"+ " OU: "+ ou+ ", Note: "+ note+ ", User: "+ user+ ", Asset: "+ asset+ ", Location: "+ room]);
+              logsheet.appendRow([new Date(),userEmail,serno, "Everything applied"+ " OU: "+ ou+ ", Note: "+ note+ ", User: "+ user+ ", Asset: "+ asset+ ", Location: "+ room]);
 
               // If the update fails for some reason, log the error.
             } catch (err) {
@@ -67,5 +69,5 @@ function onOpen() {
 }
 
 /**
-Last edit: 20190611-1745
+Last edit: 20190612-1127
 */
