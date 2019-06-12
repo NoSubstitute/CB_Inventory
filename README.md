@@ -41,3 +41,20 @@ All headers have small comments on what you can do and shouldn't.
 https://docs.google.com/spreadsheets/d/13LY-vPYSpr-hSTy7fIzg9Y7nASiGbNzqegaaVaaYd3s/copy 
 
 If you don't want to create a Sheet copy, the two scripts are also available here in this repo.
+
+DO NOTE!
+If you copy the scripts from here, instead of copying the entire Sheets file, you will have to enable the API.
+
+For a couple of minutes I had the API disabled in my template (my bad). 
+Then it isn't automatically turned on when you try to run it.
+
+I've since enabled the API setting again, so future copies should not run into that problem. If you do, you can enable the API manually.
+
+Tools / Script Editor
+Resources
+Advanced Google Services
+
+Then click the button for 
+
+Admin Directory API
+Ok and save.
