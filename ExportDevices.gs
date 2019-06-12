@@ -12,7 +12,8 @@ function exportCBs()
   // Set the active sheet be the one called "Sheets".
 var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Devices');
   // Create an array with the following columns.
-var deviceArray = [["Org Unit Path","Serial Number","OS Version","Most Recent User","Last Sync","Status","Location","AssetID","User","Notes"]];
+  //var deviceArray = [["Org Unit Path","Serial Number","OS Version","Most Recent User","Last Sync","Status","Location","AssetID","User","Notes"]];
+  var deviceArray = [["Serial Number","Org Unit Path","Location","AssetID","User","Notes","OS Version","Most Recent User","Last Sync","Status"]];
   // Start a "page" sequence, so the process can run for a very long time and manage lots of data. If you don't you will quickly error or time-out.
 var pageToken, page;
 do
@@ -36,7 +37,7 @@ for (i = 0; i < devices.length; i++) {
   // This one does a double check, as one can be undefined while the other isn't, giving wrong result.
  if (device.recentUsers && device.recentUsers[0].email) {
    var recentUser = device.recentUsers[0].email} else {var recentUser = ""}
-   deviceArray.push([device.orgUnitPath, device.serialNumber, osversion, recentUser, lastsync, status, location, asset, user, note])
+   deviceArray.push([device.serialNumber, device.orgUnitPath, location, asset, user, note, osversion, recentUser, lastsync, status])
  }
 }
 pageToken = response.nextPageToken;
@@ -49,5 +50,5 @@ sheet.getRange(1, 1, deviceArray.length, deviceArray[0].length).setValues(device
 }
 
 /**
-Last edit: 20190611-1750
+Last edit: 20190612-1132
 */
