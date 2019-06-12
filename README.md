@@ -51,10 +51,13 @@ Then it isn't automatically turned on when you try to run it.
 I've since enabled the API setting again, so future copies should not run into that problem. If you do, you can enable the API manually.
 
 Tools / Script Editor
+
 Resources
+
 Advanced Google Services
 
 Then click the button for 
 
 Admin Directory API
+
 Ok and save.
