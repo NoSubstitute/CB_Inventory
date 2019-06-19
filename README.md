@@ -61,3 +61,9 @@ Then click the button for
 Admin Directory API
 
 Ok and save.
+
+PRIVACY POLICY
+
+You are in full control of all the data.
+The script is only accessing data you yourself have access to.
+No data is sent anywhere, except between you and Google.
