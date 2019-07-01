@@ -3,7 +3,7 @@ Lists Org Unit, Chrome Device Serial Number, OS Version, Last Synced User, Last 
 So, you need to create those columns and put the mentioned headers in row 1.
 Also, in the Sheet in cell K1 I put =NOW() and in K2 I put this to calculate how many days since last sync.
 
-=ARRAYFORMULA(DATEDIF(E2:E;K1;”D”))
+=ARRAYFORMULA(DATEDIF(I2:I;K1;"D"))
 
 I then colour code column K with conditional formatting, so I can see which devices haven't been used in a long time.
 */
@@ -49,5 +49,5 @@ sheet.getRange(1, 1, deviceArray.length, deviceArray[0].length).setValues(device
 }
 
 /**
-Last edit: 20190612-1132
+Last edit: 20190701-1759
 */
