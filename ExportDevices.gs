@@ -42,12 +42,12 @@ for (i = 0; i < devices.length; i++) {
 pageToken = response.nextPageToken;
 }
 while(pageToken);
-  // Sort columns A2:J according to the content in column A (1). Yes, it's a bit weird that column A sometimes is 0 and other times 1.
+  // Sort columns A2:J according to the content in column B (2). Yes, it's a bit weird that column A sometimes is 0 and other times 1.
 sheet.getRange(1, 1, deviceArray.length, deviceArray[0].length).setValues(deviceArray);
   var range = sheet.getRange("A2:J");
-  range.sort(1);
+  range.sort(2);
 }
 
 /**
-Last edit: 20190701-1759
+Last edit: 20190701-1809
 */
