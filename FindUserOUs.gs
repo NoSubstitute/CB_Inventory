@@ -16,13 +16,16 @@ function findUserOUs() {
     for (var i=0; i<list.length; i++) {
       // Grab serial number from the first column (0), then the rest from adjoing columns and set necessary variables. 
       var serno = list[i][0];
-//      var room = list[i][2].toString();
+      // Not using the room variable, so just not referring to it.
+      //var room = list[i][2].toString();
       var asset = list[i][3].toString();
+      // I don't know if the value in i4 can be a string or not, but it works when not a string. Haven't tested as string.
       //var userinfo = list[i][4].toString();
       var userinfo = list[i][4];
+      //Moved the setting of userdata inside the try-loop, so the script doesn't crash.
       //var userdata = AdminDirectory.Users.get(userinfo, {fields: 'orgUnitPath'});
-//      var userdata = AdminDirectory.Users.get(userinfo);
-//      var userou = userdata.orgUnitPath;
+      //var userdata = AdminDirectory.Users.get(userinfo);
+      //var userou = userdata.orgUnitPath;
       
       var note = list[i][5].toString();      
       var ou = list[i][1].toString();
@@ -41,7 +44,9 @@ function findUserOUs() {
               
                     var userdata = AdminDirectory.Users.get(userinfo);
                     var userou = userdata.orgUnitPath;
-
+              //This is just residue from the previous function that I re-used the code from.
+              //However, one could also choose to make the OU change immediately, instead of just printing it.
+              //But, since that would fail with all rows missing a user, I chose not to do that now.
               //var updatecb = AdminDirectory.Chromeosdevices.update({orgUnitPath:ou, notes:note, annotatedUser:user, annotatedAssetId:asset, annotatedLocation:room},'my_customer',id);
               logsheet.appendRow([serno, ou, userou, asset, userinfo, note]);
 
@@ -54,5 +59,5 @@ function findUserOUs() {
 }
 
 /**
-Last edit: 201906701-2059
+Last edit: 201906701-2230
 */
