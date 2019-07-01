@@ -60,14 +60,16 @@ function updateChromebook() {
 function onOpen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var menuEntries = [];
-  // When the user clicks on "CB Inventory" then "1. Export devices", the function exportCBs is
+  // When the user clicks on "CB Inventory" then "Export devices", the function exportCBs is
   // executed. Here you can easily add more menu entries, if you add more functions/scripts.
-  menuEntries.push({name: "1. Export devices", functionName: "exportCBs"});
+  menuEntries.push({name: "Export devices", functionName: "exportCBs"});
   menuEntries.push(null); // line separator
-  menuEntries.push({name: "2. Update devices from sheet", functionName: "updateChromebook"});
+  menuEntries.push({name: "Find users' OUs for device relocation", functionName: "findUserOUs"});
+  menuEntries.push(null); // line separator
+  menuEntries.push({name: "Update devices from sheet", functionName: "updateChromebook"});
   ss.addMenu("CB Inventory", menuEntries);
 }
 
 /**
-Last edit: 20190612-1127
+Last edit: 201906701-2059
 */
