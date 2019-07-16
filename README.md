@@ -7,7 +7,7 @@ I've run the export from a domain with 23 500 devices, without getting a time-ou
 
 GAM can, of course, do all this, but it requires a steady hand.
 
-This little thing works great with copy/paste, and a simple menu with two options, export or update.
+This little thing works great with copy/paste, and a simple menu with few options.
 
 Info and instructions right here in the wiki.
 
