@@ -1,5 +1,5 @@
 /**
-Lists Org Unit, Chrome Device Serial Number, OS Version, Last Synced User, Last Sync Date, device Status, Location, AssetID, User, and Notes to Sheet and sorts by OU.
+Lists Org Unit, Chrome Device Serial Number, OS Version, Last Synced User, Last Sync Date, device Status, AUE, MAC Addesses, Location, AssetID, User, and Notes to Sheet and sorts by OU.
 So, you need to create those columns and put the mentioned headers in row 1.
 Also, in the Sheet in cell M1 I put =NOW() and in M2 I put this to calculate how many days since last sync.
 
@@ -51,5 +51,5 @@ sheet.getRange(1, 1, deviceArray.length, deviceArray[0].length).setValues(device
 }
 
 /**
-Last edit: 20191227-1606
+Last edit: 20191227-1633
 */
