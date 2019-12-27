@@ -6,5 +6,4 @@ https://github.com/NoSubstitute/CB_Inventory/wiki
 
 https://wheretofind.me/@NoSubstitute
 
-Last edit: 20190716-2157
 */
