@@ -1,18 +1,18 @@
 /**
 Lists Org Unit, Chrome Device Serial Number, OS Version, Last Synced User, Last Sync Date, device Status, Location, AssetID, User, and Notes to Sheet and sorts by OU.
 So, you need to create those columns and put the mentioned headers in row 1.
-Also, in the Sheet in cell K1 I put =NOW() and in K2 I put this to calculate how many days since last sync.
+Also, in the Sheet in cell M1 I put =NOW() and in M2 I put this to calculate how many days since last sync.
 
-=ARRAYFORMULA(DATEDIF(I2:I;K1;"D"))
+=ARRAYFORMULA(IF(LEN(A2:A);DATEDIF(I2:I;M1;"D");))
 
-I then colour code column K with conditional formatting, so I can see which devices haven't been used in a long time.
+I then colour code column M with conditional formatting, so I can see which devices haven't been used in a long time.
 */
 function exportCBs()
 {
   // Set the active sheet be the one called "Sheets".
 var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Devices');
   // Create an array with the following columns.
-  var deviceArray = [["Serial Number","Org Unit Path","Location","AssetID","User","Notes","OS Version","Most Recent User","Last Sync","Status"]];
+var deviceArray = [["Serial Number","Org Unit Path","Location","AssetID","User","Notes","OS Version","Most Recent User","Last Sync","Status", "MAC", "AUE"]];
   // Start a "page" sequence, so the process can run for a very long time and manage lots of data. If you don't you will quickly error or time-out.
 var pageToken, page;
 do
@@ -22,7 +22,7 @@ var response = AdminDirectory.Chromeosdevices.list('my_customer',{ pageToken: pa
 var devices = response.chromeosdevices;
 if (devices && devices.length > 0) {
 for (i = 0; i < devices.length; i++) {
-  // For each device pull the data for OU, Serial, ChromeOS, Most Recent User, Last Sync,
+  // For each device pull the data for OU, Serial, ChromeOS, Most Recent User, Last Sync, AUE, MAC Addresses.
   // Annotated Location, Annotated AssetId, Annotated User and Notes, and set the appropriate variables.
   // If the field doesn't have any data, set "", so the variable is empty, and doesn't print "undefined" in the cell.
  var device = devices[i];
@@ -33,21 +33,23 @@ for (i = 0; i < devices.length; i++) {
  if (device.annotatedAssetId) {var asset = device.annotatedAssetId} else {var asset = ""}
  if (device.annotatedUser) {var user = device.annotatedUser} else {var user = ""}
  if (device.notes) {var note = device.notes} else {var note = ""}
+ if (device.macAddress) {var macAddress = device.macAddress} else {var macAddress = ""}
+ if (device.autoUpdateExpiration) {var autoUpdateExpiration = device.autoUpdateExpiration} else {var autoUpdateExpiration = ""}
   // This one does a double check, as one can be undefined while the other isn't, giving wrong result.
  if (device.recentUsers && device.recentUsers[0].email) {
    var recentUser = device.recentUsers[0].email} else {var recentUser = ""}
-   deviceArray.push([device.serialNumber, device.orgUnitPath, location, asset, user, note, osversion, recentUser, lastsync, status])
+   deviceArray.push([device.serialNumber, device.orgUnitPath, location, asset, user, note, osversion, recentUser, lastsync, status, macAddress, autoUpdateExpiration])
  }
 }
 pageToken = response.nextPageToken;
 }
 while(pageToken);
-  // Sort columns A2:J according to the content in column B (2). Yes, it's a bit weird that column A sometimes is 0 and other times 1.
+  // Sort columns A2:L according to the content in column B (2). Yes, it's a bit weird that column A sometimes is 0 and other times 1.
 sheet.getRange(1, 1, deviceArray.length, deviceArray[0].length).setValues(deviceArray);
-  var range = sheet.getRange("A2:J");
+  var range = sheet.getRange("A2:L");
   range.sort(2);
 }
 
 /**
-Last edit: 20190701-1809
+Last edit: 20191227-1606
 */
