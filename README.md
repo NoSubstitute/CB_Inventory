@@ -13,7 +13,7 @@ Info and instructions right here in the wiki.
 
 https://github.com/NoSubstitute/CB_Inventory/wiki
 
-PRIVACY POLICY
+# PRIVACY POLICY
 
 You are in full control of all the data.
 The script is only accessing data you yourself have access to.
