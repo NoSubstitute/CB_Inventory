@@ -3,7 +3,7 @@ A Google Apps Script using Google Sheets to manage Chrome devices in a G Suite d
 
 The scripts can't do anything at all until you authorise them.
 
-I've run the export from a domain with 23 500 devices, without getting a time-out. It did take a while, but it kept going till it was done.
+I've run the export from a domain with 34 300 devices, without getting a time-out. It did take a while, but it kept going till it was done.
 
 GAM can, of course, do all this, but it requires a steady hand.
 
