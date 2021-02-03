@@ -20,7 +20,8 @@ function deprovisionChromebook() {
     for (var i=0; i<list.length; i++) {
       // Grab serial number from the first column (0) 
       var serno = list[i][0];
-      var depReason = list[i][6];
+      // Grab deprovision reason from the second column (1)
+      var depReason = list[i][1];
       // Since we provided serial numbers, convert each to device-id
       var sernoquery = "id:"+serno;
       // Use AdminSDK API to check if the cros device exists. Else the update will fail
@@ -69,5 +70,5 @@ function getLastRowSpecial(range1){
 };
 
 /**
-Last edit: 20201129-2138
+Last edit: 20210203-1030, removed unnecessary columns
 */
