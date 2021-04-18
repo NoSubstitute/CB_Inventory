@@ -1,4 +1,13 @@
 function updateChromebook() {
+  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
+  // dialog by clicking the close button in its title bar.
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert('Confirmation: Update Devices','Do you really want to update these devices?', ui.ButtonSet.YES_NO);
+
+  // Process the user's response.
+  if (response == ui.Button.YES) {
+    Logger.log('Ok, updating devices');
+
   // Get User/Operator Info
   var userEmail = Session.getActiveUser().getEmail()
   // Get the current spreadsheet
@@ -32,7 +41,7 @@ function updateChromebook() {
           var id = chromebooklist[0].deviceId;
           // For each line, try to update the device with given data, and log the result
             try {
-              var updatecb = AdminDirectory.Chromeosdevices.update({orgUnitPath:ou, notes:note, annotatedUser:user, annotatedAssetId:asset, annotatedLocation:room},'my_customer',id);
+              AdminDirectory.Chromeosdevices.update({orgUnitPath:ou, notes:note, annotatedUser:user, annotatedAssetId:asset, annotatedLocation:room},'my_customer',id);
               logsheet.appendRow([new Date(), userEmail, serno, "Everything applied"+ " OU: "+ ou+ ", Note: "+ note+ ", User: "+ user+ ", Asset: "+ asset+ ", Location: "+ room]);
 
               // If the update fails for some reason, log the error
@@ -41,7 +50,10 @@ function updateChromebook() {
             }
         }
     }
+  } else {
+    Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+  }
 }
 /**
-Last edit: 20201129-1609
+Last edit: 20210418-1649 added confirmation prompt
 */
