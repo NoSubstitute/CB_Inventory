@@ -1,4 +1,13 @@
 function deprovisionChromebook() {
+  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
+  // dialog by clicking the close button in its title bar.
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert('Confirmation: Deprovision Devices','Do you really want to deprovison these devices?', ui.ButtonSet.YES_NO);
+
+  // Process the user's response.
+  if (response == ui.Button.YES) {
+    Logger.log('Ok, running the deprovision');
+
   // Get User/Operator Info
   var userEmail = Session.getActiveUser().getEmail()
   // Get the current spreadsheet
@@ -34,7 +43,7 @@ function deprovisionChromebook() {
           var id = chromebooklist[0].deviceId;
           // For each line, try to update the device with given data, and log the result
             try {
-              var deprovisioncb = AdminDirectory.Chromeosdevices.action({"action": "deprovision","deprovisionReason": depReason},'my_customer',id);
+              AdminDirectory.Chromeosdevices.action({"action": "deprovision","deprovisionReason": depReason},'my_customer',id);
               logsheet.appendRow([new Date(), userEmail, serno, "Device deprovisioned"+ ", "+ depReason]);
 
               // If the update fails for some reason, log the error
@@ -43,6 +52,11 @@ function deprovisionChromebook() {
             }
         }
     }
+
+
+  } else {
+    Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+  }
 }
 /************************************************************************
  *
@@ -70,5 +84,5 @@ function getLastRowSpecial(range1){
 };
 
 /**
-Last edit: 20210203-1030, removed unnecessary columns
+Last edit: 20210418-1643, set a title on the confirmation prompt
 */
