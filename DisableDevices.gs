@@ -1,4 +1,13 @@
 function disableChromebook() {
+  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
+  // dialog by clicking the close button in its title bar.
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert('Confirmation: Disable Devices','Do you really want to disable these devices?', ui.ButtonSet.YES_NO);
+
+  // Process the user's response.
+  if (response == ui.Button.YES) {
+    Logger.log('Ok, disabling the devices');
+
   // Get User/Operator Info
   var userEmail = Session.getActiveUser().getEmail()
   // Get the current spreadsheet
@@ -27,7 +36,7 @@ function disableChromebook() {
           var id = chromebooklist[0].deviceId;
           // For each line, try to update the device with given data, and log the result
             try {
-              var disablecb = AdminDirectory.Chromeosdevices.action({'action': 'disable'},'my_customer',id);
+              AdminDirectory.Chromeosdevices.action({'action': 'disable'},'my_customer',id);
               logsheet.appendRow([new Date(), userEmail, serno, "Device disabled"]);
 
               // If the update fails for some reason, log the error
@@ -36,7 +45,10 @@ function disableChromebook() {
             }
         }
     }
+  } else {
+    Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+  }
 }
 /**
-Last edit: 20200923-1601
+Last edit: 20210418-1642 Added confirmation prompt
 */
