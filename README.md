@@ -13,11 +13,8 @@ Info and instructions right here in the wiki.
 
 https://github.com/NoSubstitute/CB_Inventory/wiki
 
-# PRIVACY POLICY
+[PRIVACY POLICY](https://tools.no-substitute.com/pp)
 
-You are in full control of all the data.
-The script is only accessing data you yourself have access to.
-No data is sent anywhere, except between you and Google.
-No matter if you create a copy of my Sheet or my scripts, I will never gain access to any of your data. All data reading and writing is done by you on your own account.
+tl;dr - No data is sent anywhere, except between you and Google.
 
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.me/NoSubstitute)
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.me/NoSubstitute/25USD)
