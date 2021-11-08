@@ -41,28 +41,19 @@ function findUserOUs() {
           // For each line, try to update the device with given data, and log the result.
             try {              
                     var userdata = AdminDirectory.Users.get(userinfo);
-                    // Logger.log(userinfo)
                     var userou = userdata.orgUnitPath;
-                    // Logger.log(userou)
                     var asset = userdata.name.fullName;
-                    // Logger.log(asset)
                     // var location = userdata.organizations[0].department; // This doesn't work as there may be more than one organizations array
                     if (userdata.organizations[0].type =="work" && userdata.organizations[0].primary) {
                       // Check if type is work and if primary exists
-                      // Logger.log("0" + userdata.organizations[0].type)
-                      // Logger.log("0" + userdata.organizations[0].primary)
                         var location = userdata.organizations[0].department;
-                        // Logger.log("0" + location);
                     } else if (userdata.organizations[1].type == "work" && userdata.organizations[1].primary) { // If not move on to next organization
                       // I don't have to check if primary = true, because if primary exists, it is true and the check actually doesn't work!
-                      // Logger.log("1" + userdata.organizations[1].type)
-                      // Logger.log("1" + userdata.organizations[1].primary)
                         var location = userdata.organizations[1].department;
-                        // Logger.log("1" + location);
                     } else {
                        var location = ""
                     }
-                    // Logger.log(location);
+                    // Logger.log(location); // Just a check to see it's producing the result I want
               logsheet.appendRow([serno, userou, location, asset, userinfo, note]);
 
               // If the update fails for some reason, log the error.
