@@ -18,7 +18,8 @@ function findUserOUs() {
       //Ignore deviceou as we're going to replace it with userou in Located!B2:B
       //var ou = list[i][1].toString();
       // Grab location, so we can reuse it in Located
-      var location = list[i][2].toString();
+      // Actually, don't grab location, as we're going to replace it with Department from userdata
+      // var location = list[i][2].toString();
       //Don't grab assetid, as we're going to replace it with the fullName of the user in Located!D2:D
       //var asset = list[i][3].toString();
       // I don't know if the value in i4 can be a string or not, but it works when not a string - Haven't tested as string
@@ -40,8 +41,28 @@ function findUserOUs() {
           // For each line, try to update the device with given data, and log the result.
             try {              
                     var userdata = AdminDirectory.Users.get(userinfo);
+                    // Logger.log(userinfo)
                     var userou = userdata.orgUnitPath;
+                    // Logger.log(userou)
                     var asset = userdata.name.fullName;
+                    // Logger.log(asset)
+                    // var location = userdata.organizations[0].department; // This doesn't work as there may be more than one organizations array
+                    if (userdata.organizations[0].type =="work" && userdata.organizations[0].primary) {
+                      // Check if type is work and if primary exists
+                      // Logger.log("0" + userdata.organizations[0].type)
+                      // Logger.log("0" + userdata.organizations[0].primary)
+                        var location = userdata.organizations[0].department;
+                        // Logger.log("0" + location);
+                    } else if (userdata.organizations[1].type == "work" && userdata.organizations[1].primary) { // If not move on to next organization
+                      // I don't have to check if primary = true, because if primary exists, it is true and the check actually doesn't work!
+                      // Logger.log("1" + userdata.organizations[1].type)
+                      // Logger.log("1" + userdata.organizations[1].primary)
+                        var location = userdata.organizations[1].department;
+                        // Logger.log("1" + location);
+                    } else {
+                       var location = ""
+                    }
+                    // Logger.log(location);
               logsheet.appendRow([serno, userou, location, asset, userinfo, note]);
 
               // If the update fails for some reason, log the error.
@@ -53,5 +74,5 @@ function findUserOUs() {
 }
 
 /**
-Last edit: 20210201-1745, find and add fullName of MostRecentUser and put it in AssetID of Located
+Last edit: 20211108-0955
 */
