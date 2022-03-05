@@ -13,6 +13,10 @@ Info and instructions right here in the wiki.
 
 https://github.com/NoSubstitute/CB_Inventory/wiki
 
+**How to update CB_Inventory**
+
+Just grab a new copy of the [template](https://docs.google.com/spreadsheets/d/1IuVHMwsPDPjVk-1flzhft-q3SifPFHJSPEq4182CVTM/copy) and delete your old file.
+
 [PRIVACY POLICY](https://tools.no-substitute.com/pp)
 
 tl;dr - No data is sent anywhere, except between you and Google.
