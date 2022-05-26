@@ -13,7 +13,7 @@ function findUserOUs() {
   var range = sheet.getRange(2,1,lastrow-1,lastcolumn);
   var list = range.getValues();
     for (var i=0; i<list.length; i++) {
-      // Grab serial number from the first column (0), then the rest from adjoing columns and set necessary variables. 
+      // Grab serial number from the first column (0), then the rest from adjoining columns and set necessary variables. 
       var serno = list[i][0];
       //Ignore deviceou as we're going to replace it with userou in Located!B2:B
       //var ou = list[i][1].toString();
@@ -65,5 +65,5 @@ function findUserOUs() {
 }
 
 /**
-Last edit: 20211108-0955
+Last edit: 20220526-1352
 */
