@@ -18,7 +18,7 @@ function findUserOUs() {
       //Ignore deviceou as we're going to replace it with userou in Located!B2:B
       //var ou = list[i][1].toString();
       // Grab location, so we can reuse it in Located
-      // If you instead want to pull the value of Department from userdata and insert it here, you should disable this line and enable lines 47-55.
+      // If you instead want to pull the value of Department from userdata and insert it here, you should disable line 23 and enable lines 50-58.
       // However, be aware it will currently work only if (all) your users have existing values in Department, since there is currently no working error handling for this feature. I will add that eventually.
       var location = list[i][2].toString();
       //Don't grab assetid, as we're going to replace it with the fullName of the user in Located!D2:D
@@ -45,6 +45,8 @@ function findUserOUs() {
                     var userou = userdata.orgUnitPath;
                     var asset = userdata.name.fullName;
                     // var location = userdata.organizations[0].department; // This doesn't work as there may be more than one organizations array
+
+                    // The code on lines 50-58 grabs the Department value from each user and inserts it into the Location attribute of the device. Error handling missing, so can't be used unless users actually have a value in Department. 
                     // if (userdata.organizations[0].type =="work" && userdata.organizations[0].primary) {
                     //   // Check if type is work and if primary exists
                     //     var location = userdata.organizations[0].department;
@@ -66,5 +68,5 @@ function findUserOUs() {
 }
 
 /**
-Last edit: 20220526-1352
+Last edit: 20220822-1243
 */
