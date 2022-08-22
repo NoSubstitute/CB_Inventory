@@ -18,8 +18,9 @@ function findUserOUs() {
       //Ignore deviceou as we're going to replace it with userou in Located!B2:B
       //var ou = list[i][1].toString();
       // Grab location, so we can reuse it in Located
-      // Actually, don't grab location, as we're going to replace it with Department from userdata
-      // var location = list[i][2].toString();
+      // If you instead want to pull the value of Department from userdata and insert it here, you should disable this line and enable lines 47-55.
+      // However, be aware it will currently work only if (all) your users have existing values in Department, since there is currently no working error handling for this feature. I will add that eventually.
+      var location = list[i][2].toString();
       //Don't grab assetid, as we're going to replace it with the fullName of the user in Located!D2:D
       //var asset = list[i][3].toString();
       // I don't know if the value in i4 can be a string or not, but it works when not a string - Haven't tested as string
@@ -44,15 +45,15 @@ function findUserOUs() {
                     var userou = userdata.orgUnitPath;
                     var asset = userdata.name.fullName;
                     // var location = userdata.organizations[0].department; // This doesn't work as there may be more than one organizations array
-                    if (userdata.organizations[0].type =="work" && userdata.organizations[0].primary) {
-                      // Check if type is work and if primary exists
-                        var location = userdata.organizations[0].department;
-                    } else if (userdata.organizations[1].type == "work" && userdata.organizations[1].primary) { // If not move on to next organization
-                      // I don't have to check if primary = true, because if primary exists, it is true and the check actually doesn't work!
-                        var location = userdata.organizations[1].department;
-                    } else {
-                       var location = ""
-                    }
+                    // if (userdata.organizations[0].type =="work" && userdata.organizations[0].primary) {
+                    //   // Check if type is work and if primary exists
+                    //     var location = userdata.organizations[0].department;
+                    // } else if (userdata.organizations[1].type == "work" && userdata.organizations[1].primary) { // If not move on to next organization
+                    //   // I don't have to check if primary = true, because if primary exists, it is true and the check actually doesn't work!
+                    //     var location = userdata.organizations[1].department;
+                    // } else {
+                    //    var location = ""
+                    // }
                     // Logger.log(location); // Just a check to see it's producing the result I want
               logsheet.appendRow([serno, userou, location, asset, userinfo, note]);
 
