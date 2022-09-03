@@ -98,5 +98,5 @@ function deprovisionChromebook() {
 /**
 * Last edit: 20220903-1016, added optional move on deprovision, requirement of depReason,
 * and added most likely reponse why dep failed, also parsing error if bad/no serial,
-* also set all columns to clip text, so empty cells stand out.
+* also set all columns to clip text, so empty cells stand out more.
 */
