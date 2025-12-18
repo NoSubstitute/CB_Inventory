@@ -1,54 +1,185 @@
+// The maximum runtime for a single execution in milliseconds. (25 minutes)
+const ENABLE_MAX_RUNTIME_MS = 25 * 60 * 1000;
+
+// =========================================================================================
+// == Main function called by the user to start the process
+// =========================================================================================
 function enableChromebook() {
-  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
-  // dialog by clicking the close button in its title bar.
-  var ui = SpreadsheetApp.getUi();
-  var response = ui.alert('Confirmation: Enable Devices','Do you really want to enable these devices?', ui.ButtonSet.YES_NO);
+  const config = getEnableChromebookConfig();
+  if (config.error) {
+    SpreadsheetApp.getUi().alert(config.error);
+    return;
+  }
+  
+  JobManager.showJobSidebar(config);
+}
 
-  // Process the user's response.
-  if (response == ui.Button.YES) {
-    Logger.log('Ok, enabling devices');
+function getEnableChromebookConfig() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("UpdateCBs");
+  
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { error: 'No devices listed in "UpdateCBs" sheet.' };
+  }
 
-  // Get User/Operator Info
-  var userEmail = Session.getActiveUser().getEmail()
-  // Get the current spreadsheet
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Set the sheet called UpdateCBs as the sheet we're working in
-  var sheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("UpdateCBs"));
-  // Log actions to the sheet called Log
-  var logsheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("Log"));
-  // Get all data from the second row to the last row with data, and the last column with data
-  var lastrow = sheet.getLastRow();
-  var lastcolumn = sheet.getLastColumn();
-  var range = sheet.getRange(2,1,lastrow-1,lastcolumn);
-  var list = range.getValues();
-    for (var i=0; i<list.length; i++) {
-      // Grab serial number from the first column (0) 
-      var serno = list[i][0];
-      // Since we provided serial numbers, convert each to device-id
-      var sernoquery = "id:"+serno;
-      // Use AdminSDK API to check if the cros device exists. Else the update will fail
-      var chromebooklist = AdminDirectory.Chromeosdevices.list('my_customer', {query: sernoquery}).chromeosdevices;
-        if (!chromebooklist) {
-          logsheet.appendRow([serno, "not found"]);
-        } else if (chromebooklist.length !== 1) {
-          logsheet.appendRow([serno, chromebooklist.length+" found"]);
-        } else {
-          var id = chromebooklist[0].deviceId;
-          // For each line, try to update the device with given data, and log the result
+  const totalCount = sheet.getLastRow() - 1;
+
+  JobManager.clearJob();
+  
+  return {
+    title: 'Enable Devices',
+    itemCount: totalCount,
+    startFunction: 'runEnableJob'
+  };
+}
+
+// =========================================================================================
+// == Triggered start function
+// =========================================================================================
+function runEnableJob() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("UpdateCBs");
+  
+  JobManager.cleanupAllTriggers();
+  
+  const totalCount = sheet.getLastRow() - 1;
+
+  JobManager.initJob('Enable Devices', totalCount);
+  
+  processEnableBatch(true);
+}
+
+// =========================================================================================
+// == Core processing function
+// =========================================================================================
+function processEnableBatch(arg) {
+  const isShortRun = (arg === true);
+  const startTime = Date.now();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  let sheet, logsheet;
+  try {
+    sheet = spreadsheet.getSheetByName("UpdateCBs");
+    logsheet = spreadsheet.getSheetByName("Log");
+  } catch (e) {
+    console.error("Failed to access sheets: " + e.message);
+    JobManager.updateJob(0, "Error accessing sheets: " + e.message, true, e.message);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+
+  let status = JobManager.getJobStatus();
+  if (!status || status.isFinished || status.error) {
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  if (JobManager.isJobCancelled()) {
+    JobManager.updateJob(status.processedCount, "Cancelled by user.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  let currentIndex = status.processedCount;
+
+  // Load list. Cols: A(0)=ID, B(1)=Serial
+  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+
+  let pendingLogs = [];
+
+  try {
+    for (var i = currentIndex; i < deviceList.length; i++) {
+      if (JobManager.isJobCancelled()) {
+        flushLogs(logsheet, pendingLogs);
+        JobManager.updateJob(i, "Cancelled by user.", true);
+        JobManager.cleanupAllTriggers();
+        return;
+      }
+      
+      if (i % 50 === 0) {
+        JobManager.updateJob(i, "Enabling devices...");
+        flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
+      }
+      
+      if (isShortRun && i >= currentIndex + 50) {
+         break; 
+      } else if (!isShortRun && Date.now() - startTime > ENABLE_MAX_RUNTIME_MS) {
+         break;
+      }
+      
+      let rowData = deviceList[i];
+      let deviceId = rowData[0];
+      let serno = rowData[1];
+      
+      if (!deviceId || deviceId.toString().trim() === "") {
+          pendingLogs.push([new Date(), userEmail, serno, "FAILED - Missing Device ID"]);
+      } else {
+          // Implement simple retry with backoff for quota errors
+          var maxRetries = 5;
+          var retryDelay = 2000;
+          var success = false;
+          
+          for (var attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-              AdminDirectory.Chromeosdevices.action({"action": "reenable"},'my_customer',id);
-              logsheet.appendRow([new Date(), userEmail, serno, "Device enabled"]);
-
-              // If the update fails for some reason, log the error
+              AdminDirectory.Chromeosdevices.action({"action": "reenable"}, 'my_customer', deviceId);
+              success = true;
+              break;
             } catch (err) {
-              logsheet.appendRow([serno, err]);
+              if (err.message && (err.message.includes("Quota exceeded") || err.message.includes("Rate Limit Exceeded"))) {
+                console.warn(`Quota exceeded for ${serno}. Retrying in ${retryDelay}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+                Utilities.sleep(retryDelay);
+                retryDelay *= 2; // Exponential backoff
+              } else {
+                // If it's not a quota error, log it and move on
+                pendingLogs.push([new Date(), userEmail, serno, `Error: ${err.message}`]);
+                break; 
+              }
             }
-        }
+          }
+          
+          if (success) {
+            pendingLogs.push([new Date(), userEmail, serno, "Device enabled"]);
+            // Add a small delay between successful requests to prevent hitting the per-minute limit
+            Utilities.sleep(1000); 
+          } else if (!success && !pendingLogs.some(log => log[2] === serno)) {
+             // If we failed all retries and haven't logged a specific error yet
+             pendingLogs.push([new Date(), userEmail, serno, "Failed: Quota exceeded after retries"]);
+          }
+      }
     }
-  } else {
-    Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+
+    flushLogs(logsheet, pendingLogs);
+
+    if (i < deviceList.length) {
+        JobManager.updateJob(i, "Rescheduling process...", false);
+        JobManager.cleanupAllTriggers();
+        ScriptApp.newTrigger('processEnableBatch')
+          .timeBased()
+          .after(10 * 1000)
+          .create();
+    } else {
+        JobManager.updateJob(deviceList.length, "Enable complete!", true);
+        JobManager.cleanupAllTriggers();
+    }
+
+  } catch (e) {
+    flushLogs(logsheet, pendingLogs);
+    JobManager.updateJob(currentIndex, "Error: " + e.message, true, e.message);
+    Logger.log(`Enable failed: ${e.toString()}\n${e.stack}`);
+    JobManager.cleanupAllTriggers();
   }
 }
-/**
-Last edit: 20210418-1642 Added confirmation prompt
-*/
+
+function flushLogs(sheet, logs) {
+  if (logs && logs.length > 0) {
+    try {
+      sheet.getRange(sheet.getLastRow() + 1, 1, logs.length, logs[0].length).setValues(logs);
+      SpreadsheetApp.flush();
+    } catch (e) {
+      console.error("Failed to write logs: " + e.message);
+    }
+  }
+}

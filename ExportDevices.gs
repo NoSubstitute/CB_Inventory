@@ -1,59 +1,272 @@
 /**
-Lists Org Unit, Chrome Device Serial Number, OS Version, Last Synced User, Last Sync Date, device Status, AUE, MAC Addesses, Location, AssetID, User, Make&Model, and Notes to Sheet and sorts by OU.
-So, you need to create those columns and put the mentioned headers in row 1.
-Also, in the Sheet in cell N1 I put =NOW() and in N2 I put this to calculate how many days since last sync.
-
-=ARRAYFORMULA(IF(LEN(A2:A);DATEDIF(I2:I;N1;"D");))
-
-I then colour code column N with conditional formatting, so I can see which devices haven't been used in a long time.
-
-Just recently I added two columns (O,P) to tell me about my ChromeOS versions.
-*/
-function exportCBs()
-{
-  // Set the active sheet be the one called "Devices".
-var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Devices');
-  // Create an array with the following columns.
-var deviceArray = [["Serial Number","Org Unit Path","Location","AssetID","User","Notes","Most Recent User","OS Version","Last Sync","Status","MAC","AUE","Model"]];
-  // Start a "page" sequence, so the process can run for a very long time and manage lots of data. If you don't you will quickly error or time-out.
-var pageToken, page;
-do
-{
-  // Use the AdminSDK to list all devices.
-var response = AdminDirectory.Chromeosdevices.list('my_customer',{ pageToken: pageToken});
-var devices = response.chromeosdevices;
-if (devices && devices.length > 0) {
-for (i = 0; i < devices.length; i++) {
-  // For each device pull the data for OU, Serial, ChromeOS, Most Recent User, Last Sync, AUE, MAC Addresses, Model,
-  // Annotated Location, Annotated AssetId, Annotated User and Notes, and set the appropriate variables.
-  // If the field doesn't have any data, set "", so the variable is empty, and doesn't print "undefined" in the cell.
- var device = devices[i];
- if (device.status) {var status = device.status} else {var status = ""}
- if (device.lastSync) {var lastsync = new Date(device.lastSync)} else {var lastsync = ""}
- if (device.osVersion) {var osversion = device.osVersion} else {var osversion = ""}
- if (device.annotatedLocation) {var location = device.annotatedLocation} else {var location = ""}
- if (device.annotatedAssetId) {var asset = device.annotatedAssetId} else {var asset = ""}
- if (device.annotatedUser) {var user = device.annotatedUser} else {var user = ""}
- if (device.notes) {var note = device.notes} else {var note = ""}
- if (device.macAddress) {var macAddress = device.macAddress} else {var macAddress = ""}
- if (device.model) {var model = device.model} else {var model = ""}  
- if (device.autoUpdateExpiration) {var autoUpdateExpiration = device.autoUpdateExpiration} else {var autoUpdateExpiration = ""}
-  // This one does a double check, as one can be undefined while the other isn't, giving wrong result.
- if (device.recentUsers && device.recentUsers[0].email) {
-   var recentUser = device.recentUsers[0].email} else {var recentUser = ""}
-   deviceArray.push([device.serialNumber, device.orgUnitPath, location, asset, user, note, recentUser, osversion, lastsync, status, macAddress, autoUpdateExpiration, model])
- }
+ * Entry point for the "Export Devices" menu item.
+ * Resets any previous state and starts a fresh export.
+ */
+function exportCBs() {
+  const config = getExportConfig();
+  if (config.error) {
+    SpreadsheetApp.getUi().alert(config.error);
+    return;
+  }
+  
+  JobManager.showJobSidebar(config);
 }
-pageToken = response.nextPageToken;
-}
-while(pageToken);
-// Sort columns A2:M according to the content in column B (2). Yes, it's a bit weird that column A sometimes is 0 and other times 1.
-// Also set the range the script should update to 13 (M) so it doesn't touch content in columns N+ 
-sheet.getRange(1, 1, deviceArray.length, 13).setValues(deviceArray);  
-  var range = sheet.getRange("A2:M");
-  range.sort(2);
+
+function getExportConfig() {
+  const sheetName = 'Devices';
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    return { error: `Sheet "${sheetName}" not found.` };
+  }
+
+  // Clear previous state to ensure fresh start
+  const props = PropertiesService.getScriptProperties();
+  props.deleteProperty('EXPORT_PAGE_TOKEN');
+  props.deleteProperty('EXPORT_PROCESSED_COUNT');
+  
+  JobManager.clearJob();
+
+  spreadsheet.toast('Exporting devices...', 'CB_Inventory');
+
+  return {
+    title: 'Export Devices',
+    itemCount: 0, // Indeterminate
+    startFunction: 'runExportJob'
+  };
 }
 
 /**
-Last edit: 20210203-1009, changed the order of the columns to make it easier to copy columns A-G to Dislocated, as source for the Find userou feature
-*/
+ * Triggered start function
+ */
+function runExportJob() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName('Devices');
+  
+  JobManager.cleanupAllTriggers();
+  
+  // Setup Sheet for fresh data
+  const lastRow = sheet.getMaxRows();
+  sheet.getRange(1, 1, lastRow, 14).clearContent();
+
+  const headers = [
+    "Device ID", "Serial Number", "Org Unit Path", "Location", "AssetID", "User", "Notes",
+    "Most Recent User", "OS Version", "Last Sync", "Status", "MAC", "AUE", "Model"
+  ];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+  SpreadsheetApp.flush();
+
+  // Initialize Job
+  JobManager.initJob('Export Devices', 0);
+
+  // Start the initial burst IMMEDIATELY. 
+  // Trigger will only be created IF this burst doesn't finish the whole job.
+  processExportBatch(true);
+}
+
+/**
+ * Worker function that performs the export.
+ */
+function processExportBatch(arg) {
+  const isShortRun = (arg === true);
+  const START_TIME = Date.now();
+  const MAX_EXECUTION_TIME = 25 * 60 * 1000; 
+  
+  const sheetName = 'Devices';
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  let sheet;
+  try {
+     sheet = spreadsheet.getSheetByName(sheetName);
+  } catch (e) {
+     JobManager.updateJob(0, "Error accessing sheet: " + e.message, true, e.message);
+     JobManager.cleanupAllTriggers();
+     return;
+  }
+  
+  const props = PropertiesService.getScriptProperties();
+
+  // Check Job Status
+  let status = JobManager.getJobStatus();
+  if (!status || status.isFinished || status.error) {
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  if (JobManager.isJobCancelled()) {
+    JobManager.updateJob(status.processedCount, "Export cancelled by user.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  // Restore State
+  let pageToken = props.getProperty('EXPORT_PAGE_TOKEN');
+  let processedCount = parseInt(props.getProperty('EXPORT_PROCESSED_COUNT') || '0');
+  
+  const BATCH_SIZE = 2000; 
+  let accumulatedRows = [];
+  
+  // Calculate start row directly from state
+  let currentRow = processedCount + 2;
+
+  try {
+    do {
+      // API Fetch with Retry
+      let response;
+      let attempts = 0;
+      while (attempts < 5) {
+        try {
+          response = AdminDirectory.Chromeosdevices.list('my_customer', {
+            maxResults: 200, 
+            pageToken: pageToken,
+            fields: 'nextPageToken,chromeosdevices(deviceId,serialNumber,orgUnitPath,annotatedLocation,annotatedAssetId,annotatedUser,notes,recentUsers(email),osVersion,lastSync,status,macAddress,autoUpdateExpiration,model)'
+          });
+          break;
+        } catch (err) {
+          attempts++;
+          if (attempts >= 5) throw err;
+          Utilities.sleep(Math.pow(attempts, 2) * 1000);
+        }
+      }
+
+      // Check Cancellation IMMEDIATELY after API call
+      if (JobManager.isJobCancelled()) {
+        if (accumulatedRows.length > 0) writeBatch(sheet, accumulatedRows, currentRow);
+        JobManager.updateJob(processedCount, "Export cancelled by user.", true);
+        JobManager.cleanupAllTriggers();
+        return;
+      }
+
+      const devices = response.chromeosdevices;
+      if (devices && devices.length > 0) {
+        const deviceRows = devices.map(d => [
+          d.deviceId ?? "", d.serialNumber ?? "", d.orgUnitPath ?? "", d.annotatedLocation ?? "",
+          d.annotatedAssetId ?? "", d.annotatedUser ?? "", d.notes ?? "",
+          d.recentUsers?.[0]?.email ?? "", d.osVersion ?? "",
+          d.lastSync ? new Date(d.lastSync) : "", d.status ?? "",
+          d.macAddress ?? "", d.autoUpdateExpiration ?? "", d.model ?? ""
+        ]);
+
+        accumulatedRows = accumulatedRows.concat(deviceRows);
+        processedCount += devices.length;
+
+        // Write Batch
+        if (accumulatedRows.length >= BATCH_SIZE) {
+          writeBatch(sheet, accumulatedRows, currentRow);
+          currentRow += accumulatedRows.length;
+          accumulatedRows = [];
+          
+          if (response.nextPageToken) {
+            props.setProperty('EXPORT_PAGE_TOKEN', response.nextPageToken);
+            props.setProperty('EXPORT_PROCESSED_COUNT', processedCount.toString());
+          }
+          
+          // Update Status with Processed Count so it shows in Sidebar
+          const msg = `Exporting devices... (Processed: ${processedCount})`;
+          JobManager.updateJob(processedCount, msg);
+          
+          // Progress flush
+          SpreadsheetApp.flush();
+        }
+      }
+
+      pageToken = response.nextPageToken;
+      
+      // Time Check / Run Limit
+      if (isShortRun) {
+         if (processedCount >= 2000) break; // Return control to UI after first batch
+      } else if (Date.now() - START_TIME > MAX_EXECUTION_TIME) {
+         break; // Trigger timeout reached
+      }
+
+    } while (pageToken);
+
+    // Final Write for this cycle
+    if (accumulatedRows.length > 0) {
+      writeBatch(sheet, accumulatedRows, currentRow);
+      currentRow += accumulatedRows.length;
+    }
+
+    if (pageToken) {
+        // Not done yet. Save state and create trigger if needed.
+        props.setProperty('EXPORT_PAGE_TOKEN', pageToken);
+        props.setProperty('EXPORT_PROCESSED_COUNT', processedCount.toString());
+        
+        JobManager.updateJob(processedCount, `Exporting devices... (Processed: ${processedCount})`);
+        
+        // Ensure exactly ONE trigger exists for the next batch
+        JobManager.cleanupAllTriggers();
+        ScriptApp.newTrigger('processExportBatch')
+          .timeBased()
+          .after(30 * 1000)
+          .create();
+          
+        return; 
+    }
+
+    // Completely Finished
+    if (!pageToken) {
+        removeDuplicates(sheet);
+
+        if (sheet.getLastRow() > 1) {
+          try {
+            JobManager.updateJob(processedCount, "Sorting devices...");
+            const dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 14);
+            dataRange.sort({column: 3, ascending: true});
+          } catch (sortError) {
+            console.warn('Sorting failed: ' + sortError.message);
+          }
+        }
+
+        props.deleteProperty('EXPORT_PAGE_TOKEN');
+        props.deleteProperty('EXPORT_PROCESSED_COUNT');
+        
+        JobManager.updateJob(processedCount, "Export Complete!", true);
+        JobManager.cleanupAllTriggers();
+    }
+
+  } catch (e) {
+    Logger.log(`Export Error: ${e.message}`);
+    const savedToken = props.getProperty('EXPORT_PAGE_TOKEN');
+    if (savedToken) {
+       JobManager.updateJob(processedCount, "Error: " + e.message + ". Retrying...", false);
+       JobManager.cleanupAllTriggers();
+       ScriptApp.newTrigger('processExportBatch').timeBased().after(30 * 1000).create();
+    } else {
+       JobManager.updateJob(processedCount, "Export failed: " + e.message, true, e.message);
+       JobManager.cleanupAllTriggers();
+    }
+  }
+}
+
+function writeBatch(sheet, rows, startRow) {
+  let writeAttempts = 0;
+  const maxWriteAttempts = 5;
+  while (writeAttempts < maxWriteAttempts) {
+    try {
+      SpreadsheetApp.flush();
+      sheet.getRange(startRow, 1, rows.length, rows[0].length).setValues(rows);
+      SpreadsheetApp.flush();
+      break;
+    } catch (e) {
+      writeAttempts++;
+      if (writeAttempts >= maxWriteAttempts) throw e;
+      Utilities.sleep(Math.pow(writeAttempts, 2) * 5000); 
+    }
+  }
+}
+
+function deleteExportTriggers() {
+   JobManager.cleanupAllTriggers();
+}
+
+function removeDuplicates(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  try {
+    sheet.getRange(2, 1, lastRow - 1, 14).removeDuplicates([1]); 
+  } catch (e) {
+    console.warn("Native removeDuplicates failed: " + e.message);
+  }
+}

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 15px;
+        background-color: #f8f9fa;
+        color: #333;
+        margin: 0;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+      }
+      .header {
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 10px;
+        margin-bottom: 5px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      h2 {
+        margin: 0;
+        font-size: 18px;
+        color: #4285f4;
+      }
+      
+      /* Menu Styles */
+      .menu-view {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .menu-btn {
+        padding: 10px 15px;
+        background-color: white;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: left;
+        font-size: 14px;
+        color: #3c4043;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .menu-btn:hover {
+        background-color: #f1f3f4;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      }
+      .menu-btn:active {
+        background-color: #e8eaed;
+      }
+      .menu-btn .arrow {
+        color: #5f6368;
+        font-size: 12px;
+      }
+
+      /* Back Button */
+      .back-btn {
+        background: none;
+        border: none;
+        color: #5f6368;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 5px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+      .back-btn:hover {
+        color: #202124;
+      }
+      .back-btn svg {
+        width: 18px;
+        height: 18px;
+        margin-right: 5px;
+        fill: currentColor;
+      }
+
+      /* Confirmation & Progress Styles */
+      .status-box {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      }
+      .progress-container {
+        width: 100%;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        height: 10px;
+        margin: 10px 0;
+        overflow: hidden;
+      }
+      .progress-bar {
+        height: 100%;
+        background-color: #4285f4;
+        width: 0%;
+        transition: width 0.5s ease-in-out;
+      }
+      .progress-bar.error {
+        background-color: #ea4335;
+      }
+      .progress-bar.complete {
+        background-color: #34a853;
+      }
+      .stats {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+      }
+      .current-action {
+        font-size: 13px;
+        color: #444;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-height: 20px;
+      }
+      .controls {
+        text-align: center;
+        margin-top: 15px;
+      }
+      button.action-btn {
+        padding: 8px 20px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: background 0.2s;
+        margin: 0 5px;
+      }
+      .btn-primary {
+        background-color: #4285f4;
+        color: white;
+      }
+      .btn-primary:hover {
+        background-color: #3b78e7;
+      }
+      .btn-secondary {
+        background-color: #f1f3f4;
+        color: #333;
+        border: 1px solid #dadce0;
+      }
+      .btn-secondary:hover {
+        background-color: #e8eaed;
+      }
+      .btn-danger {
+        background-color: #fce8e6;
+        color: #c5221f;
+        border: 1px solid #f6aea9;
+      }
+      .btn-danger:hover {
+        background-color: #f6aea9;
+      }
+      .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(66,133,244,0.3);
+        border-radius: 50%;
+        border-top-color: #4285f4;
+        animation: spin 1s ease-in-out infinite;
+        margin-right: 5px;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      
+      /* Utility */
+      .hidden { display: none !important; }
+      .text-center { text-align: center; }
+      .mb-20 { margin-bottom: 20px; }
+      
+      /* Loading State */
+      .loading {
+        cursor: wait !important;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h2 id="pageTitle">Main Menu</h2>
+      </div>
+
+      <!-- MAIN MENU VIEW -->
+      <div id="menuView" class="menu-view">
+        <button class="menu-btn" onclick="startServerFunction('exportCBs', this)">
+          Export devices
+        </button>
+        
+        <button class="menu-btn" onclick="showSubMenu('relocateView', 'Relocate devices')">
+          Relocate devices <span class="arrow">&#9654;</span>
+        </button>
+        
+        <button class="menu-btn" onclick="startServerFunction('updateChromebook', this)">
+          Update devices
+        </button>
+        
+        <button class="menu-btn" onclick="startServerFunction('enableChromebook', this)">
+          Enable devices
+        </button>
+        
+        <button class="menu-btn" onclick="startServerFunction('disableChromebook', this)">
+          Disable devices
+        </button>
+        
+        <button class="menu-btn" onclick="showSubMenu('clearView', 'Clear devices')">
+          Clear devices <span class="arrow">&#9654;</span>
+        </button>
+        
+        <button class="menu-btn" onclick="showSubMenu('deprovisionView', 'Deprovisioning')">
+          Deprovisioning <span class="arrow">&#9654;</span>
+        </button>
+      </div>
+
+      <!-- RELOCATE SUB-MENU -->
+      <div id="relocateView" class="menu-view hidden">
+        <button class="back-btn" onclick="showMainMenu()">
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          Back
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('findUnlocatedDevices', this)">
+          Find unlocated devices
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('findUserOUs', this)">
+          Find users' OUs for device relocation
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('moveLocatedDevices', this)">
+          Move located devices
+        </button>
+      </div>
+
+      <!-- CLEAR SUB-MENU -->
+      <div id="clearView" class="menu-view hidden">
+        <button class="back-btn" onclick="showMainMenu()">
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          Back
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('clearProfiles', this)">
+          Remove profiles from devices
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('powerWash', this)">
+          Power wash devices
+        </button>
+      </div>
+
+      <!-- DEPROVISION SUB-MENU -->
+      <div id="deprovisionView" class="menu-view hidden">
+        <button class="back-btn" onclick="showMainMenu()">
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+          Back
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('deprovisionChromebook', this)">
+          Deprovision devices
+        </button>
+      </div>
+
+      <!-- CONFIRMATION / JOB START VIEW -->
+      <div id="startScreen" class="hidden">
+        <div class="mb-20" id="confirmationText">
+          Ready to start process?
+        </div>
+        <div class="text-center">
+          <button id="startBtn" class="action-btn btn-primary" onclick="startJob()">Start</button>
+          <button id="closeStartBtn" class="action-btn btn-secondary" onclick="returnToMenu()">Back</button>
+        </div>
+      </div>
+
+      <!-- PROGRESS VIEW -->
+      <div id="progressScreen" class="hidden">
+        <div class="status-box">
+          <div class="stats">
+            <span id="statusLabel">Initializing...</span>
+            <span id="percentage">0%</span>
+          </div>
+          
+          <div class="progress-container">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+          
+          <div class="stats">
+            <span>Processed: <strong id="processedCount">0</strong> <span id="totalCountContainer">/ <span id="totalCount">-</span></span></span>
+          </div>
+          
+          <div class="current-action" id="currentAction">
+            Waiting for server...
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="cancelBtn" class="action-btn btn-danger" onclick="cancelJob()">Cancel Process</button>
+          <button id="closeBtn" class="action-btn btn-secondary hidden" onclick="returnToMenu()">Back to Menu</button>
+        </div>
+      </div>
+
+    </div>
+
+    <script>
+      let pollingIntervalActive = false;
+      let isFinished = false;
+      let config = {};
+      let currentSubMenu = { id: 'menuView', title: 'Main Menu' };
+
+      try {
+        config = <?!= config ?>;
+      } catch (e) {
+        console.log("No config passed", e);
+      }
+
+      window.onload = function() {
+        console.log("Init with config:", config);
+        
+        // Decide which view to show
+        if (config.mode === 'menu') {
+          if (config.targetViewId && config.targetViewId !== 'menuView') {
+            showSubMenu(config.targetViewId, config.title);
+          } else {
+            showMainMenu();
+          }
+        } else if (config.jobType || config.startFunction) {
+           // We are in Job Mode
+           document.getElementById('pageTitle').textContent = config.title || 'Job Status';
+           hideAllViews();
+           
+           // Check status immediately to see if we resume or show start confirmation
+           google.script.run
+            .withSuccessHandler(initializeJobUI)
+            .withFailureHandler(handleError)
+            .getJobStatus();
+        } else {
+           // Default fallback
+           showMainMenu();
+        }
+      };
+
+      // --- Navigation Functions ---
+
+      function hideAllViews() {
+        const views = ['menuView', 'relocateView', 'clearView', 'deprovisionView', 'startScreen', 'progressScreen'];
+        views.forEach(id => document.getElementById(id).classList.add('hidden'));
+        resetButtons();
+      }
+
+      function showMainMenu() {
+        hideAllViews();
+        document.getElementById('menuView').classList.remove('hidden');
+        document.getElementById('pageTitle').textContent = 'Main Menu';
+        currentSubMenu = { id: 'menuView', title: 'Main Menu' };
+      }
+
+      function showSubMenu(viewId, title) {
+        hideAllViews();
+        document.getElementById(viewId).classList.remove('hidden');
+        document.getElementById('pageTitle').textContent = title;
+        currentSubMenu = { id: viewId, title: title };
+      }
+      
+      function returnToMenu() {
+        // Reset local job flags so next job can start correctly
+        isFinished = false;
+        pollingIntervalActive = false;
+
+        // Restore button text
+        document.getElementById('closeBtn').textContent = 'Back to Menu';
+        document.getElementById('closeStartBtn').textContent = 'Back';
+        
+        // Clear server-side job status asynchronously
+        google.script.run.clearJob();
+
+        // Direct client-side navigation for speed and stability
+        if (currentSubMenu && currentSubMenu.id !== 'menuView') {
+          showSubMenu(currentSubMenu.id, currentSubMenu.title);
+        } else {
+          showMainMenu();
+        }
+      }
+      
+      function resetButtons() {
+        const buttons = document.querySelectorAll('.menu-btn');
+        buttons.forEach(btn => {
+          if (btn.classList.contains('loading')) {
+             btn.classList.remove('loading');
+             btn.disabled = false;
+             if (btn.dataset.originalText) {
+                btn.innerHTML = btn.dataset.originalText;
+             }
+          }
+        });
+      }
+
+      function startServerFunction(funcName, btnElement) {
+        const configGetters = {
+          'exportCBs': 'getExportConfig',
+          'findUnlocatedDevices': 'getFindUnlocatedDevicesConfig',
+          'findUserOUs': 'getFindUserOUsConfig',
+          'moveLocatedDevices': 'getMoveLocatedDevicesConfig',
+          'updateChromebook': 'getUpdateChromebookConfig',
+          'enableChromebook': 'getEnableChromebookConfig',
+          'disableChromebook': 'getDisableChromebookConfig',
+          'clearProfiles': 'getClearProfilesConfig',
+          'powerWash': 'getPowerWashConfig',
+          'deprovisionChromebook': 'getDeprovisionChromebookConfig'
+        };
+        
+        // Loading State
+        if (btnElement) {
+           btnElement.classList.add('loading');
+           btnElement.disabled = true;
+           btnElement.dataset.originalText = btnElement.innerHTML;
+           btnElement.textContent = (funcName === 'exportCBs') ? "Exporting devices..." : "Loading...";
+        }
+
+        if (configGetters[funcName]) {
+           google.script.run
+             .withSuccessHandler(function(fetchedConfig) {
+                 if (fetchedConfig && fetchedConfig.error) {
+                     alert(fetchedConfig.error);
+                     resetButtons();
+                 } else if (fetchedConfig) {
+                     config = fetchedConfig; 
+                     if (funcName === 'exportCBs') {
+                        // Immediately transition to progress for Export
+                        showProgressScreen();
+                        startPolling();
+                        
+                        // Initiate the job on the server
+                        if (config.startFunction) {
+                           google.script.run[config.startFunction]();
+                        }
+                     } else {
+                        showStartScreen();
+                     }
+                 }
+             })
+             .withFailureHandler(function(err) { 
+                 alert("Error: " + err); 
+                 resetButtons();
+             })
+             [configGetters[funcName]]();
+        } else {
+            google.script.run
+              .withSuccessHandler(function() {
+                  resetButtons();
+              })
+              .withFailureHandler(function(err) { 
+                  alert("Error: " + err); 
+                  resetButtons();
+              })
+              [funcName]();
+        }
+      }
+
+      // --- Job Logic ---
+
+      function initializeJobUI(status) {
+        if (config.title) {
+          document.getElementById('pageTitle').textContent = config.title;
+        }
+
+        if (status && status.isActive) {
+          showProgressScreen();
+          updateUI(status);
+          startPolling();
+        } 
+        else if (config.startFunction) {
+          showStartScreen();
+        }
+        else {
+          showProgressScreen();
+          document.getElementById('statusLabel').textContent = "No active job";
+          document.getElementById('cancelBtn').classList.add('hidden');
+          document.getElementById('closeBtn').classList.remove('hidden');
+        }
+      }
+
+      function showStartScreen() {
+        hideAllViews();
+        document.getElementById('startScreen').classList.remove('hidden');
+        
+        // Reset buttons to default state
+        const startBtn = document.getElementById('startBtn');
+        const backBtn = document.getElementById('closeStartBtn');
+        startBtn.disabled = false;
+        startBtn.textContent = "Start";
+        backBtn.disabled = false;
+        backBtn.textContent = "Back";
+
+        if (config.title) {
+          document.getElementById('pageTitle').textContent = config.title;
+        }
+
+        let text = "Are you sure you want to start this process?";
+        if (config.itemCount && config.itemCount > 0) {
+          text = "Ready to process <strong>" + config.itemCount + "</strong> items.<br>This may take a few minutes.";
+        } else if (config.itemCount === 0) {
+           text = "Ready to start process.<br>This may take a few minutes.";
+        } else if (config.itemCount < 0) {
+           text = "No items found to process.";
+           startBtn.disabled = true;
+        }
+        document.getElementById('confirmationText').innerHTML = text;
+      }
+
+      function showProgressScreen() {
+        hideAllViews();
+        document.getElementById('progressScreen').classList.remove('hidden');
+        
+        // Reset process buttons
+        document.getElementById('cancelBtn').classList.remove('hidden');
+        document.getElementById('cancelBtn').disabled = false;
+        document.getElementById('closeBtn').classList.add('hidden');
+
+        if (config.title) {
+          document.getElementById('pageTitle').textContent = config.title;
+        }
+
+        // PRE-INITIALIZE: Hide progress elements immediately if indeterminate to avoid flicker
+        if (config.itemCount === 0) {
+           document.querySelectorAll('.stats').forEach(el => el.style.display = 'none');
+           const pc = document.querySelector('.progress-container');
+           if (pc) pc.style.display = 'none';
+        }
+      }
+
+      function startJob() {
+        const startBtn = document.getElementById('startBtn');
+        startBtn.disabled = true;
+        startBtn.textContent = "Starting...";
+        document.getElementById('closeStartBtn').disabled = true;
+
+        if (config.startFunction) {
+          google.script.run
+            .withSuccessHandler(function() {
+              showProgressScreen();
+              startPolling();
+            })
+            .withFailureHandler(function(err) {
+              alert("Error starting job: " + err);
+              startBtn.disabled = false;
+              startBtn.textContent = "Start";
+              document.getElementById('closeStartBtn').disabled = false;
+            })
+            [config.startFunction]();
+        }
+      }
+
+      function startPolling() {
+        if (!pollingIntervalActive) {
+          pollingIntervalActive = true; 
+          refreshStatus();
+        }
+      }
+
+      function refreshStatus() {
+        if (isFinished) return;
+        google.script.run
+          .withSuccessHandler(function(status) {
+              updateUI(status);
+              if (!isFinished) {
+                  setTimeout(refreshStatus, 10000); // Strict 10s gap
+              }
+          })
+          .withFailureHandler(function(err) {
+              handleError(err);
+              if (!isFinished) {
+                  setTimeout(refreshStatus, 10000);
+              }
+          })
+          .getJobStatus();
+      }
+
+      function updateUI(status) {
+        if (!status) return;
+
+        document.getElementById('statusLabel').innerHTML = status.isActive ? '<div class="spinner"></div> Running' : (status.error ? 'Error' : 'Completed');
+        document.getElementById('currentAction').textContent = status.message || '';
+        document.getElementById('processedCount').textContent = status.processedCount || 0;
+        
+        const statsElements = document.querySelectorAll('.stats');
+        const progressContainer = document.querySelector('.progress-container');
+
+        if (status.totalCount > 0) {
+           statsElements.forEach(el => el.style.display = 'flex');
+           if (progressContainer) progressContainer.style.display = 'block';
+           
+           document.getElementById('totalCountContainer').style.display = 'inline';
+           document.getElementById('totalCount').textContent = status.totalCount;
+           document.getElementById('percentage').style.display = 'inline';
+           
+            let total = status.totalCount;
+            let current = status.processedCount || 0;
+            let percent = Math.min(100, Math.round((current / total) * 100));
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('percentage').textContent = percent + '%';
+        } else {
+           statsElements.forEach(el => el.style.display = 'none');
+           if (progressContainer) progressContainer.style.display = 'none';
+        }
+
+        // Handle button visibility based on active state
+        if (status.isActive) {
+          isFinished = false;
+          document.getElementById('cancelBtn').classList.remove('hidden');
+          document.getElementById('cancelBtn').disabled = false;
+          document.getElementById('closeBtn').classList.add('hidden');
+        }
+
+        if (status.isFinished || status.error) {
+          isFinished = true;
+          document.getElementById('cancelBtn').classList.add('hidden');
+          document.getElementById('closeBtn').classList.remove('hidden');
+          
+          const bar = document.getElementById('progressBar');
+          if (status.error) {
+             bar.classList.add('error');
+             document.getElementById('statusLabel').textContent = 'Failed';
+             document.getElementById('statusLabel').style.color = '#ea4335';
+          } else {
+             bar.classList.add('complete');
+             document.getElementById('statusLabel').textContent = 'Finished';
+             document.getElementById('statusLabel').style.color = '#34a853';
+             document.getElementById('progressBar').style.width = '100%';
+             if (status.totalCount > 0) {
+                 document.getElementById('percentage').textContent = '100%';
+             }
+          }
+        }
+      }
+
+      function cancelJob() {
+        if (confirm('Are you sure you want to cancel the current process?')) {
+          document.getElementById('currentAction').textContent = 'Cancelling...';
+          document.getElementById('cancelBtn').disabled = true;
+          google.script.run.cancelJob();
+        }
+      }
+
+      function handleError(err) {
+        console.error('Polling error:', err);
+      }
+    </script>
+  </body>
+</html>

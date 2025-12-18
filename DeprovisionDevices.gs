@@ -1,102 +1,187 @@
+// The maximum runtime for a single execution in milliseconds. (25 minutes)
+const DEPROV_MAX_RUNTIME_MS = 25 * 60 * 1000;
+
+// =========================================================================================
+// == Main function called by the user to start the process
+// =========================================================================================
 function deprovisionChromebook() {
-  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
-  // dialog by clicking the close button in its title bar.
-  var ui = SpreadsheetApp.getUi();
-  var response = ui.alert('Confirmation: Deprovision Devices', 'Do you really want to deprovison these devices?', ui.ButtonSet.YES_NO);
-  // Process the user's response.
-  if (response == ui.Button.YES) {
-    // Logger.log('Ok, running the deprovision');
-    // Get User/Operator Info
-    var userEmail = Session.getActiveUser().getEmail()
-    // Get the current spreadsheet
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    // Set the sheet called Deprovision as the sheet we're working in
-    var sheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("DeprovisionCBs"));
-    // Log actions to the sheet called Log
-    var logsheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("Log"));
-    // Get all data from the second row to the last row with data, and the last column with data
-    // Since all text in column D is in the merged cells D1:D14 it only counts as one cell/row
-    // Having the text in seprate rows caused a failed API call since it tried to run the empty rows in A.
-    var lastrow = sheet.getLastRow();
-    var lastcolumn = sheet.getLastColumn();
-    var range = sheet.getRange(2, 1, lastrow - 1, lastcolumn);
-    var list = range.getValues();
-    for (var i = 0; i < list.length; i++) {
-      // Grab serial number from the first column (0) 
-      var serno = list[i][0];
-      // Grab deprovision reason from the second column (1)
-      var depReason = list[i][2];
-      // Since we provided serial numbers, convert each to device-id
-      var sernoquery = "id:" + serno;
-      // Use AdminSDK API to check if the cros device exists. Else the update will fail
+  const config = getDeprovisionChromebookConfig();
+  if (config.error) {
+    SpreadsheetApp.getUi().alert(config.error);
+    return;
+  }
+  
+  JobManager.showJobSidebar(config);
+}
+
+function getDeprovisionChromebookConfig() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+  
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { error: 'No devices listed in "DeprovisionCBs" sheet.' };
+  }
+
+  const totalCount = sheet.getLastRow() - 1;
+
+  // Force cold start
+  JobManager.clearJob();
+  
+  return {
+    title: 'Deprovision Devices',
+    itemCount: totalCount,
+    startFunction: 'runDeprovisionJob'
+  };
+}
+
+// =========================================================================================
+// == Triggered start function
+// =========================================================================================
+function runDeprovisionJob() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+  
+  JobManager.cleanupAllTriggers();
+  
+  const totalCount = sheet.getLastRow() - 1;
+
+  JobManager.initJob('Deprovision Devices', totalCount);
+  
+  processDeprovisionBatch(true);
+}
+
+// =========================================================================================
+// == Core processing function
+// =========================================================================================
+function processDeprovisionBatch(arg) {
+  const isShortRun = (arg === true);
+  const startTime = Date.now();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  let sheet, logsheet;
+  try {
+    sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+    logsheet = spreadsheet.getSheetByName("Log");
+  } catch (e) {
+    console.error("Failed to access sheets: " + e.message);
+    JobManager.updateJob(0, "Error accessing sheets: " + e.message, true, e.message);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+
+  let status = JobManager.getJobStatus();
+  if (!status || status.isFinished || status.error) {
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  if (JobManager.isJobCancelled()) {
+    JobManager.updateJob(status.processedCount, "Cancelled by user.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  let currentIndex = status.processedCount;
+
+  // Load list. Cols: A(0)=ID, B(1)=Serial, C(2)=NewOU, D(3)=Reason
+  // Get 4 columns
+  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+
+  let pendingLogs = [];
+
+  try {
+    for (var i = currentIndex; i < deviceList.length; i++) {
+      if (JobManager.isJobCancelled()) {
+        flushLogs(logsheet, pendingLogs);
+        JobManager.updateJob(i, "Cancelled by user.", true);
+        JobManager.cleanupAllTriggers();
+        return;
+      }
+      
+      if (i % 50 === 0) {
+        JobManager.updateJob(i, "Deprovisioning devices...");
+        flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
+      }
+      
+      if (isShortRun && i >= currentIndex + 50) {
+         break; 
+      } else if (!isShortRun && Date.now() - startTime > DEPROV_MAX_RUNTIME_MS) {
+         break;
+      }
+      
+      let rowData = deviceList[i];
+      let deviceId = rowData[0];
+      let serno = rowData[1];
+      let newOU = rowData[2];
+      let depReason = rowData[3];
+      
+      
       try {
-        var chromebooklist = AdminDirectory.Chromeosdevices.list('my_customer', { query: sernoquery }).chromeosdevices;
-        if (!chromebooklist) {
-          // Logger.log("Device not found, probably typo in the serial");
-          logsheet.appendRow([new Date(), userEmail, serno, "FAILED DEPROVISON - Device not found, probably typo in the serial"]);
-        } else if (chromebooklist.length !== 1) {
-          logsheet.appendRow([serno, chromebooklist.length + " found"]);
-        } else {
-          var id = chromebooklist[0].deviceId;
-          // For each line, try to update the device with given data, and log the result
-          try {
-            if (list[i][2]) {
-              AdminDirectory.Chromeosdevices.action({ "action": "deprovision", "deprovisionReason": depReason }, 'my_customer', id);
-              // Logger.log("Device actually deprovisioned here")
-              if (list[i][1]) {
-                var newOU = list[i][1];
-                // Logger.log("Device moved and deprovisioned")
-                AdminDirectory.Chromeosdevices.update({ orgUnitPath: newOU }, 'my_customer', id);
-                logsheet.appendRow([new Date(), userEmail, serno, "Device deprovisioned" + ", " + depReason + " and moved to " + newOU]);
+        if (!deviceId || deviceId.toString().trim() === "") {
+           // Skip empty
+           pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Missing Device ID"]);
+        }
+        else {
+            if (depReason) {
+              AdminDirectory.Chromeosdevices.action({ "action": "deprovision", "deprovisionReason": depReason }, 'my_customer', deviceId);
+              
+              if (newOU) {
+                AdminDirectory.Chromeosdevices.update({ orgUnitPath: newOU.toString() }, 'my_customer', deviceId);
+                pendingLogs.push([new Date(), userEmail, serno, "Device deprovisioned" + ", " + depReason + " and moved to " + newOU]);
               } else {
-                // Logger.log("Device deprovisioned without move")
-                logsheet.appendRow([new Date(), userEmail, serno, "Device deprovisioned" + ", " + depReason]);
+                pendingLogs.push([new Date(), userEmail, serno, "Device deprovisioned" + ", " + depReason]);
               }
             } else {
-              // Logger.log("You forgot to select a deprovision reason")
-              logsheet.appendRow([new Date(), userEmail, serno, "FAILED DEPROVISON - You forgot to select a deprovision reason"]);
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - You forgot to select a deprovision reason"]);
             }
-            // If the update fails for some reason, log the error
-          } catch (err) {
-            // Logger.log(err.message);
-            checkError = err.message;
-            alreadyDeprovisioned = "Illegal device state transition";
-            invalidInput = "Invalid Input"
+        }
+      } catch (err) {
+            var checkError = err.message;
+            var alreadyDeprovisioned = "Illegal device state transition";
+            var invalidInput = "Invalid Input"
             if (checkError.includes(alreadyDeprovisioned)) {
-              // Logger.log("Device already deprovisioned")
-              logsheet.appendRow([new Date(), userEmail, serno, "FAILED DEPROVISON - Device already deprovisioned"]);
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Device already deprovisioned"]);
             }
             else if (checkError.includes(invalidInput)) {
-              // Logger.log("Serial missing")
-              logsheet.appendRow([new Date(), userEmail, serno, "FAILED DEPROVISON - Serial missing"]);
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Serial missing"]);
             } else {
-              logsheet.appendRow([serno, "FAILED DEPROVISON - " + err]);
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - " + err]);
             }
-          }
-        }
-        // If the serial check fails for some reason, log the error
-      } catch (err) {
-        // Logger.log(err.name);
-        // Logger.log(err.message);
-        checkError = err.message;
-        invalidInput = "Invalid Input"
-        if (checkError.includes(invalidInput)) {
-          // Logger.log("Serial missing or invalid")
-          logsheet.appendRow([new Date(), userEmail, serno, "FAILED DEPROVISON - Serial missing or invalid"]);
-        } else {
-          // Logger.log("Failed for some unknown reason - log it")
-          logsheet.appendRow([serno, "FAILED DEPROVISON - " + err]);
-        }
       }
     }
-  } else {
-    // This doesn't have to be active; only relevant during development and debugging
-    // Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+
+    flushLogs(logsheet, pendingLogs);
+
+    if (i < deviceList.length) {
+        JobManager.updateJob(i, "Rescheduling process...", false);
+        JobManager.cleanupAllTriggers();
+        ScriptApp.newTrigger('processDeprovisionBatch')
+          .timeBased()
+          .after(10 * 1000)
+          .create();
+    } else {
+        JobManager.updateJob(deviceList.length, "Deprovision complete!", true);
+        JobManager.cleanupAllTriggers();
+    }
+
+  } catch (e) {
+    flushLogs(logsheet, pendingLogs);
+    JobManager.updateJob(currentIndex, "Error: " + e.message, true, e.message);
+    Logger.log(`Deprovision failed: ${e.toString()}\n${e.stack}`);
+    JobManager.cleanupAllTriggers();
   }
 }
 
-/**
-* Last edit: 20220903-1016, added optional move on deprovision, requirement of depReason,
-* and added most likely reponse why dep failed, also parsing error if bad/no serial,
-* also set all columns to clip text, so empty cells stand out more.
-*/
+function flushLogs(sheet, logs) {
+  if (logs && logs.length > 0) {
+    try {
+      sheet.getRange(sheet.getLastRow() + 1, 1, logs.length, logs[0].length).setValues(logs);
+      SpreadsheetApp.flush();
+    } catch (e) {
+      console.error("Failed to write logs: " + e.message);
+    }
+  }
+}

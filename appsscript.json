@@ -10,7 +10,7 @@
     ]
   },
   "exceptionLogging": "STACKDRIVER",
-  "oauthScopes": ["https://www.googleapis.com/auth/admin.directory.device.chromeos", "https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/admin.directory.user"],
+  "oauthScopes": ["https://www.googleapis.com/auth/admin.directory.device.chromeos", "https://www.googleapis.com/auth/spreadsheets.currentonly", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/admin.directory.user.readonly", "https://www.googleapis.com/auth/script.container.ui", "https://www.googleapis.com/auth/script.scriptapp"],
 
   "runtimeVersion": "V8"
 }

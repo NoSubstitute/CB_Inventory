@@ -1,59 +1,214 @@
+// The maximum runtime for a single execution in milliseconds. (25 minutes)
+const UPDATE_MAX_RUNTIME_MS = 25 * 60 * 1000;
+
+// =========================================================================================
+// == Main function called by the user to start the update process
+// =========================================================================================
 function updateChromebook() {
-  // Display a dialog box with a message and "Yes" and "No" buttons. The user can also close the
-  // dialog by clicking the close button in its title bar.
-  var ui = SpreadsheetApp.getUi();
-  var response = ui.alert('Confirmation: Update Devices','Do you really want to update these devices?', ui.ButtonSet.YES_NO);
+  const config = getUpdateChromebookConfig();
+  
+  if (config.error) {
+    SpreadsheetApp.getUi().alert(config.error);
+    return;
+  }
 
-  // Process the user's response.
-  if (response == ui.Button.YES) {
-    Logger.log('Ok, updating devices');
+  // Open the Job Manager Sidebar with confirmation config
+  JobManager.showJobSidebar(config);
+}
 
-  // Get User/Operator Info
-  var userEmail = Session.getActiveUser().getEmail()
-  // Get the current spreadsheet
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  // Set the sheet called UpdateCBs as the sheet we're working in
-  var sheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("UpdateCBs"));
-  // Log actions to the sheet called Log
-  var logsheet = SpreadsheetApp.setActiveSheet(ss.getSheetByName("Log"));
-  // Get all data from the second row to the last row with data, and the last column with data
-  var lastrow = sheet.getLastRow();
-  var lastcolumn = sheet.getLastColumn();
-  var range = sheet.getRange(2,1,lastrow-1,lastcolumn);
-  var list = range.getValues();
-    for (var i=0; i<list.length; i++) {
-      // Grab serial number from the first column (0), then the rest from adjoing columns and set necessary variables
-      var serno = list[i][0];
-      var room = list[i][2].toString();
-      var asset = list[i][3].toString();
-      var user = list[i][4].toString();
-      var note = list[i][5].toString();      
-      var ou = list[i][1].toString();
-      // Since we provided serial numbers, convert each to device-id
-      var sernoquery = "id:"+serno;
-      // Use AdminSDK API to check if the cros device exists. Else the update will fail
-      var chromebooklist = AdminDirectory.Chromeosdevices.list('my_customer', {query: sernoquery}).chromeosdevices;
-        if (!chromebooklist) {
-          logsheet.appendRow([serno, "not found"]);
-        } else if (chromebooklist.length !== 1) {
-          logsheet.appendRow([serno, chromebooklist.length+" found"]);
-        } else {
-          var id = chromebooklist[0].deviceId;
-          // For each line, try to update the device with given data, and log the result
-            try {
-              AdminDirectory.Chromeosdevices.update({orgUnitPath:ou, notes:note, annotatedUser:user, annotatedAssetId:asset, annotatedLocation:room},'my_customer',id);
-              logsheet.appendRow([new Date(), userEmail, serno, "Everything applied"+ " OU: "+ ou+ ", Note: "+ note+ ", User: "+ user+ ", Asset: "+ asset+ ", Location: "+ room]);
+function getUpdateChromebookConfig() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("UpdateCBs");
+  
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { error: 'No devices listed in "UpdateCBs" sheet.' };
+  }
 
-              // If the update fails for some reason, log the error
-            } catch (err) {
-              logsheet.appendRow([serno, err]);
-            }
+  const totalCount = sheet.getLastRow() - 1;
+
+  // Force cold start: Clear any previous job state
+  JobManager.clearJob();
+  
+  return {
+    title: 'Update Devices',
+    itemCount: totalCount,
+    startFunction: 'runUpdateJob'
+  };
+}
+
+// =========================================================================================
+
+// == Triggered start function (called by the Sidebar "Start" button)
+
+// =========================================================================================
+
+function runUpdateJob() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("UpdateCBs");
+  
+  JobManager.cleanupAllTriggers();
+  
+  const totalCount = sheet.getLastRow() - 1;
+
+  // Initialize the job state using JobManager
+  JobManager.initJob('Update Devices', totalCount);
+  
+  // Run a short batch IMMEDIATELY to give instant feedback.
+  // Trigger will be created only if this burst doesn't finish the whole job.
+  processUpdateBatch(true);
+}
+
+
+// =========================================================================================
+// == Core processing function, run by triggers (and initially by runUpdateJob)
+// =========================================================================================
+function processUpdateBatch(arg) {
+  // Check if arg is strictly true (manual short run); otherwise it's a trigger event object (long run)
+  const isShortRun = (arg === true);
+  
+  const startTime = Date.now();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet(); // May be null in background, but usually works in container-bound
+  
+  let sheet, logsheet;
+  try {
+    sheet = spreadsheet.getSheetByName("UpdateCBs");
+    logsheet = spreadsheet.getSheetByName("Log");
+  } catch (e) {
+    console.error("Failed to access sheets in background: " + e.message);
+    JobManager.updateJob(0, "Error accessing sheets: " + e.message, true, e.message);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  const userEmail = Session.getActiveUser().getEmail(); // Might be script owner in background
+
+  // Get Job State from JobManager
+  let status = JobManager.getJobStatus();
+  if (!status || status.isFinished || status.error) {
+    // Job already finished, cancelled, or error. Clean up and exit.
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  // Check for cancellation at the very beginning of the batch
+  if (JobManager.isJobCancelled()) {
+    JobManager.updateJob(status.processedCount, "Update cancelled by user.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  let currentIndex = status.processedCount;
+
+  // Load the full list of devices to update
+  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  
+  let pendingLogs = [];
+
+  try {
+    for (var i = currentIndex; i < deviceList.length; i++) {
+      // Check Cancellation
+      if (JobManager.isJobCancelled()) {
+        flushLogs(logsheet, pendingLogs);
+        JobManager.updateJob(i, "Update cancelled by user.", true);
+        JobManager.cleanupAllTriggers();
+        return;
+      }
+      
+      // Update Status via JobManager every 50 items for responsive UI
+      if (i % 50 === 0) {
+        JobManager.updateJob(i, "Updating devices...");
+        flushLogs(logsheet, pendingLogs); // Write logs in batches
+        pendingLogs = [];
+      }
+      
+      // SHORT RUN CHECK / TIMEOUT CHECK
+      if (isShortRun && i >= currentIndex + 50) {
+         break; // End initial burst
+      } else if (!isShortRun && Date.now() - startTime > UPDATE_MAX_RUNTIME_MS) {
+         break; // Execution time limit reached
+      }
+      
+      let rowData = deviceList[i];
+      let deviceId = rowData[0];
+      let serno = rowData[1];
+      
+      try {
+        if (!deviceId || deviceId.toString().trim() === "") {
+          pendingLogs.push([new Date(), userEmail, serno, "Device ID missing - skipping."]);
+          continue; // Skip processing this row
         }
+
+        let updatePayload = {};
+        if (rowData[2] !== null && rowData[2] !== undefined) updatePayload.orgUnitPath = rowData[2].toString();
+        if (rowData[3] !== null && rowData[3] !== undefined) updatePayload.annotatedLocation = rowData[3].toString();
+        if (rowData[4] !== null && rowData[4] !== undefined) updatePayload.annotatedAssetId = rowData[4].toString();
+        if (rowData[5] !== null && rowData[5] !== undefined) updatePayload.annotatedUser = rowData[5].toString();
+        if (rowData[6] !== null && rowData[6] !== undefined) updatePayload.notes = rowData[6].toString();
+
+        if (Object.keys(updatePayload).length > 0) {
+            AdminDirectory.Chromeosdevices.update(updatePayload, 'my_customer', deviceId);
+            
+            let updateDetails = [];
+            if (updatePayload.orgUnitPath !== undefined) updateDetails.push(`OU: "${updatePayload.orgUnitPath}"`);
+            if (updatePayload.annotatedLocation !== undefined) updateDetails.push(`Location: "${updatePayload.annotatedLocation}"`);
+            if (updatePayload.annotatedAssetId !== undefined) updateDetails.push(`Asset: "${updatePayload.annotatedAssetId}"`);
+            if (updatePayload.annotatedUser !== undefined) updateDetails.push(`User: "${updatePayload.annotatedUser}"`);
+            if (updatePayload.notes !== undefined) updateDetails.push(`Note: "${updatePayload.notes}"`);
+        
+            let logMessage = `Successfully updated: ` + (updateDetails.length > 0 ? updateDetails.join(', ') : 'No specific fields provided for update.');
+            pendingLogs.push([new Date(), userEmail, serno, logMessage]);
+
+        } else {
+            pendingLogs.push([new Date(), userEmail, serno, `No update data provided in sheet.`]);
+        }
+      } catch (err) {
+        pendingLogs.push([new Date(), userEmail, serno, `Error: ${err.message}`]);
+      }
     }
-  } else {
-    Logger.log('The user clicked "No" or the close button in the dialog\'s title bar.');
+
+    // Final batch write for logs
+    flushLogs(logsheet, pendingLogs);
+
+    if (i < deviceList.length) {
+        // Not done yet. Reschedule.
+        JobManager.updateJob(i, "Rescheduling process...", false);
+        JobManager.cleanupAllTriggers();
+        ScriptApp.newTrigger('processUpdateBatch')
+          .timeBased()
+          .after(10 * 1000)
+          .create();
+    } else {
+        // Finished all items
+        JobManager.updateJob(deviceList.length, "Update complete!", true);
+        JobManager.cleanupAllTriggers();
+    }
+
+  } catch (e) {
+    flushLogs(logsheet, pendingLogs);
+    JobManager.updateJob(currentIndex, "An unexpected error occurred: " + e.message, true, e.message);
+    Logger.log(`Update process failed: ${e.toString()}\n${e.stack}`);
+    JobManager.cleanupAllTriggers();
   }
 }
-/**
-Last edit: 20210418-1649 added confirmation prompt
-*/
+
+
+
+function flushLogs(sheet, logs) {
+
+  if (logs && logs.length > 0) {
+
+    try {
+
+      sheet.getRange(sheet.getLastRow() + 1, 1, logs.length, logs[0].length).setValues(logs);
+
+      SpreadsheetApp.flush();
+
+    } catch (e) {
+
+      console.error("Failed to write logs: " + e.message);
+
+    }
+
+  }
+
+}
