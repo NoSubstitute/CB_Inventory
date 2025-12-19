@@ -1,5 +1,5 @@
 # CB_Inventory
-A Google Apps Script using Google Sheets to manage Chrome devices in a G Suite domain.
+A Google Apps Script using Google Sheets to manage Chrome devices in a Google Workspace domain.
 
 The scripts can't do anything at all until you authorise them.
 
