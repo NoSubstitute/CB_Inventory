@@ -208,6 +208,7 @@ var JobManager = {
       'processClearProfilesBatch',
       'processPowerWashBatch',
       'processDeprovisionBatch',
+      'processDeprovisionBySerialBatch',
       'processMoveBatch',
       'processFindUserOUsBatch',
       'processExportBatch',

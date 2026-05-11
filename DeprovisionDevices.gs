@@ -185,3 +185,213 @@ function flushLogs(sheet, logs) {
     }
   }
 }
+
+// =========================================================================================
+// == Deprovision by Serial Number (Alternative Flow)
+// =========================================================================================
+/**
+ * Initiates the deprovisioning process by serial number.
+ */
+function deprovisionChromebookBySerial() {
+  const config = getDeprovisionBySerialConfig();
+  if (config.error) {
+    SpreadsheetApp.getUi().alert(config.error);
+    return;
+  }
+  
+  JobManager.showJobSidebar(config);
+}
+
+/**
+ * Generates the configuration for the deprovision by serial job.
+ * @return {object} The configuration object.
+ */
+function getDeprovisionBySerialConfig() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+  
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { error: 'No devices listed in "DeprovisionCBs" sheet.' };
+  }
+
+  const totalCount = sheet.getLastRow() - 1;
+
+  // Force cold start
+  JobManager.clearJob();
+  
+  return {
+    title: 'Deprovision by Serial (slow)',
+    itemCount: totalCount,
+    startFunction: 'runDeprovisionBySerialJob'
+  };
+}
+
+/**
+ * Triggered function to start the deprovision by serial job.
+ */
+function runDeprovisionBySerialJob() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+  
+  JobManager.cleanupAllTriggers();
+  
+  const totalCount = sheet.getLastRow() - 1;
+
+  JobManager.initJob('Deprovision by Serial (slow)', totalCount);
+  
+  processDeprovisionBySerialBatch(true);
+}
+
+/**
+ * Core processing function for deprovisioning by serial in batches.
+ * @param {boolean} arg If true, runs a short batch (UI preview).
+ */
+function processDeprovisionBySerialBatch(arg) {
+  const isShortRun = (arg === true);
+  const startTime = Date.now();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  
+  let sheet, logsheet;
+  try {
+    sheet = spreadsheet.getSheetByName("DeprovisionCBs");
+    logsheet = spreadsheet.getSheetByName("Log");
+  } catch (e) {
+    console.error("Failed to access sheets: " + e.message);
+    JobManager.updateJob(0, "Error accessing sheets: " + e.message, true, e.message);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
+  const userEmail = Session.getActiveUser().getEmail();
+
+  let status = JobManager.getJobStatus();
+  if (!status || status.isFinished || status.error) {
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  if (JobManager.isJobCancelled()) {
+    JobManager.updateJob(status.processedCount, "Cancelled by user.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+  
+  let currentIndex = status.processedCount;
+
+  // Load list. Cols: A(0)=ID, B(1)=Serial, C(2)=NewOU, D(3)=Reason
+  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+
+  let pendingLogs = [];
+
+  try {
+    for (let i = currentIndex; i < deviceList.length; i++) {
+      if (JobManager.isJobCancelled()) {
+        flushLogs(logsheet, pendingLogs);
+        JobManager.updateJob(i, "Cancelled by user.", true);
+        JobManager.cleanupAllTriggers();
+        return;
+      }
+      
+      if (i % 10 === 0) {
+        JobManager.updateJob(i, "Processing serial numbers...");
+        flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
+      }
+      
+      if (isShortRun && i >= currentIndex + 20) {
+         break; 
+      } else if (!isShortRun && Date.now() - startTime > DEPROV_MAX_RUNTIME_MS) {
+         break;
+      }
+      
+      let rowData = deviceList[i];
+      let deviceId = rowData[0];
+      let serno = rowData[1];
+      let newOU = rowData[2];
+      let depReason = rowData[3];
+      
+      try {
+        // Alternative Flow: Lookup if Device ID is missing
+        if (!deviceId || deviceId.toString().trim() === "") {
+          if (serno && serno.toString().trim() !== "") {
+            deviceId = getDeviceIdBySerialNumber(serno);
+          }
+        }
+
+        if (!deviceId || deviceId.toString().trim() === "") {
+           pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Missing Device ID and Serial lookup failed"]);
+        }
+        else {
+            if (depReason) {
+              AdminDirectory.Chromeosdevices.action({ "action": "deprovision", "deprovisionReason": depReason }, 'my_customer', deviceId);
+              
+              if (newOU) {
+                AdminDirectory.Chromeosdevices.update({ orgUnitPath: newOU.toString() }, 'my_customer', deviceId);
+                pendingLogs.push([new Date(), userEmail, serno, "Device deprovisioned (via serial)" + ", " + depReason + " and moved to " + newOU]);
+              } else {
+                pendingLogs.push([new Date(), userEmail, serno, "Device deprovisioned (via serial)" + ", " + depReason]);
+              }
+            } else {
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - You forgot to select a deprovision reason"]);
+            }
+        }
+      } catch (err) {
+            const checkError = err.message;
+            const alreadyDeprovisioned = "Illegal device state transition";
+            const invalidInput = "Invalid Input"
+            if (checkError.includes(alreadyDeprovisioned)) {
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Device already deprovisioned"]);
+            }
+            else if (checkError.includes(invalidInput)) {
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - Serial missing or invalid"]);
+            } else {
+              pendingLogs.push([new Date(), userEmail, serno, "FAILED DEPROVISON - " + err]);
+            }
+      }
+    }
+
+    flushLogs(logsheet, pendingLogs);
+
+    if (i < deviceList.length) {
+        JobManager.updateJob(i, "Rescheduling process...", false);
+        JobManager.cleanupAllTriggers();
+        ScriptApp.newTrigger('processDeprovisionBySerialBatch')
+          .timeBased()
+          .after(10 * 1000)
+          .create();
+    } else {
+        JobManager.updateJob(deviceList.length, "Deprovision complete!", true);
+        JobManager.cleanupAllTriggers();
+    }
+
+  } catch (e) {
+    flushLogs(logsheet, pendingLogs);
+    JobManager.updateJob(currentIndex, "Error: " + e.message, true, e.message);
+    Logger.log(`Deprovision by serial failed: ${e.toString()}\n${e.stack}`);
+    JobManager.cleanupAllTriggers();
+  }
+}
+
+/**
+ * Looks up the device ID for a given serial number using the Admin Directory API.
+ * @param {string} serialNumber The serial number to look up.
+ * @return {string|null} The device ID if found, otherwise null.
+ */
+function getDeviceIdBySerialNumber(serialNumber) {
+  if (!serialNumber) return null;
+  
+  try {
+    const response = AdminDirectory.Chromeosdevices.list('my_customer', {
+      query: `id:${serialNumber}`
+    });
+    
+    if (response.chromeosdevices && response.chromeosdevices.length > 0) {
+      // Assuming serial numbers are unique per customer
+      return response.chromeosdevices[0].deviceId;
+    }
+  } catch (e) {
+    console.error(`Error looking up serial number ${serialNumber}: ${e.message}`);
+  }
+  
+  return null;
+}

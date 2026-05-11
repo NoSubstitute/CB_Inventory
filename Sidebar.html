@@ -267,7 +267,10 @@
           Back
         </button>
         <button class="menu-btn" onclick="startServerFunction('deprovisionChromebook', this)">
-          Deprovision devices
+          Deprovision devices (fast)
+        </button>
+        <button class="menu-btn" onclick="startServerFunction('deprovisionChromebookBySerial', this)">
+          Deprovision by Serial (slow)
         </button>
       </div>
 
@@ -415,7 +418,8 @@
           'disableChromebook': 'getDisableChromebookConfig',
           'clearProfiles': 'getClearProfilesConfig',
           'powerWash': 'getPowerWashConfig',
-          'deprovisionChromebook': 'getDeprovisionChromebookConfig'
+          'deprovisionChromebook': 'getDeprovisionChromebookConfig',
+          'deprovisionChromebookBySerial': 'getDeprovisionBySerialConfig'
         };
         
         // Loading State

@@ -9,6 +9,7 @@ If you ever need to reach me, I'm available everywhere:
 https://wheretofind.me/@NoSubstitute
 
 === Changelog ===
+2026-05-11.01: Added alternative "Deprovision by Serial (slow)" flow with automated Device ID lookup. Refined UI labels to distinguish between "fast" (Device ID) and "slow" (Serial) deprovisioning. Implemented getDeviceIdBySerialNumber using Admin SDK and standardized new code with strict style compliance and JSDoc.
 2025-12-18.15: Further restricted OAuth scopes: Limiting spreadsheet access to "currentonly" (only the active file) and maintaining "admin.directory.user.readonly".
 2025-12-18.14: Restricted "admin.directory.user" OAuth scope to "readonly" as the application only reads user data to locate organizational units.
 2025-12-18.13: Finalized project by removing unused "Diagnosis.gs" script and the unnecessary "external_request" OAuth scope.
