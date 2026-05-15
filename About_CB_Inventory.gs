@@ -9,6 +9,10 @@ If you ever need to reach me, I'm available everywhere:
 https://wheretofind.me/@NoSubstitute
 
 === Changelog ===
+2026-05-15.03: Refined deprovisioning flows to strictly log the intended identifier (Device ID, Serial Number, or Asset ID) and gracefully skip invalid rows.
+2026-05-15.02: Fixed JobManager sidebar UI flicker by immediately resetting progress elements when switching jobs. Corrected loop variable scoping across all batch processes to prevent double-logging errors.
+2026-05-15.01: Improved batch job accuracy by updating all configuration and processing functions to strictly count and load data based on the last populated row of the primary identifier column, ignoring empty formatted rows.
+2026-05-13.01: Added alternative "Deprovision by Asset ID (slow)" flow. Enhanced Serial and Asset ID lookups with exact-match verification to prevent partial-match errors.
 2026-05-11.01: Added alternative "Deprovision by Serial (slow)" flow with automated Device ID lookup. Refined UI labels to distinguish between "fast" (Device ID) and "slow" (Serial) deprovisioning. Implemented getDeviceIdBySerialNumber using Admin SDK and standardized new code with strict style compliance and JSDoc.
 2025-12-18.15: Further restricted OAuth scopes: Limiting spreadsheet access to "currentonly" (only the active file) and maintaining "admin.directory.user.readonly".
 2025-12-18.14: Restricted "admin.directory.user" OAuth scope to "readonly" as the application only reads user data to locate organizational units.

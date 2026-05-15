@@ -20,11 +20,16 @@ function getUpdateChromebookConfig() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName("UpdateCBs");
   
-  if (!sheet || sheet.getLastRow() < 2) {
+  if (!sheet) {
+    return { error: 'Sheet "UpdateCBs" not found.' };
+  }
+
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  if (lastRow < 2) {
     return { error: 'No devices listed in "UpdateCBs" sheet.' };
   }
 
-  const totalCount = sheet.getLastRow() - 1;
+  const totalCount = lastRow - 1;
 
   // Force cold start: Clear any previous job state
   JobManager.clearJob();
@@ -48,7 +53,8 @@ function runUpdateJob() {
   
   JobManager.cleanupAllTriggers();
   
-  const totalCount = sheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  const totalCount = lastRow - 1;
 
   // Initialize the job state using JobManager
   JobManager.initJob('Update Devices', totalCount);
@@ -99,16 +105,25 @@ function processUpdateBatch(arg) {
   
   let currentIndex = status.processedCount;
 
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  if (lastRow < 2) {
+    JobManager.updateJob(0, "No data found.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
   // Load the full list of devices to update
-  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  const deviceList = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
   
   let pendingLogs = [];
+  let i = currentIndex;
 
   try {
-    for (var i = currentIndex; i < deviceList.length; i++) {
+    for (; i < deviceList.length; i++) {
       // Check Cancellation
       if (JobManager.isJobCancelled()) {
         flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
         JobManager.updateJob(i, "Update cancelled by user.", true);
         JobManager.cleanupAllTriggers();
         return;
@@ -168,6 +183,7 @@ function processUpdateBatch(arg) {
 
     // Final batch write for logs
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
 
     if (i < deviceList.length) {
         // Not done yet. Reschedule.
@@ -185,6 +201,7 @@ function processUpdateBatch(arg) {
 
   } catch (e) {
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
     JobManager.updateJob(currentIndex, "An unexpected error occurred: " + e.message, true, e.message);
     Logger.log(`Update process failed: ${e.toString()}\n${e.stack}`);
     JobManager.cleanupAllTriggers();

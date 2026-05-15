@@ -19,11 +19,16 @@ function getFindUserOUsConfig() {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = spreadsheet.getSheetByName("Dislocated");
     
-    if (!sheet || sheet.getLastRow() < 2) {
+    if (!sheet) {
+      return { error: 'Sheet "Dislocated" not found.' };
+    }
+
+    const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+    if (lastRow < 2) {
       return { error: 'No devices listed in "Dislocated" sheet.' };
     }
 
-    const totalCount = sheet.getLastRow() - 1;
+    const totalCount = lastRow - 1;
 
     JobManager.clearJob();
     
@@ -33,7 +38,7 @@ function getFindUserOUsConfig() {
       startFunction: 'runFindUserOUsJob'
     };
   } catch (e) {
-    return { error: "Error starting Find User OUs: " + e.message + "\\n" + e.stack };
+    return { error: "Error starting Find User OUs: " + e.message + "\n" + e.stack };
   }
 }
 
@@ -46,7 +51,8 @@ function runFindUserOUsJob() {
   
   JobManager.cleanupAllTriggers();
   
-  const totalCount = sheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  const totalCount = lastRow - 1;
 
   JobManager.initJob('Find User OUs', totalCount);
   
@@ -65,7 +71,7 @@ function processFindUserOUsBatch(arg) {
   try {
     dislocatedSheet = spreadsheet.getSheetByName("Dislocated");
     locatedSheet = spreadsheet.getSheetByName("Located");
-    logsheet = spreadsheet.getSheetByName("Log"); // Assuming a log sheet
+    logsheet = spreadsheet.getSheetByName("Log"); 
   } catch (e) {
     console.error("Failed to access sheets: " + e.message);
     JobManager.updateJob(0, "Error accessing sheets: " + e.message, true, e.message);
@@ -89,41 +95,46 @@ function processFindUserOUsBatch(arg) {
   
   let currentIndex = status.processedCount;
 
+  const lastRow = JobManager._findLastPopulatedRow(dislocatedSheet, 1);
+  if (lastRow < 2) {
+    JobManager.updateJob(0, "No data found.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
   // Load list from Dislocated sheet
-  // Cols: 0: Device ID, 1: Serial Number, 2: Org Unit Path (current), 3: Location,
-  //       4: AssetID, 5: User, 6: Notes, 7: Recent User (email)
-  const deviceList = dislocatedSheet.getRange(2, 1, dislocatedSheet.getLastRow() - 1, 8).getValues();
+  const deviceList = dislocatedSheet.getRange(2, 1, lastRow - 1, 8).getValues();
   
   let collectedLocatedData = [];
   let pendingLogs = [];
+  let i = currentIndex;
 
   try {
-    for (var i = currentIndex; i < deviceList.length; i++) {
+    for (; i < deviceList.length; i++) {
       if (JobManager.isJobCancelled()) {
         flushLogs(logsheet, pendingLogs);
+        if (collectedLocatedData.length > 0) {
+          const startRow = JobManager._findLastPopulatedRow(locatedSheet, 1) + 1;
+          locatedSheet.getRange(startRow, 1, collectedLocatedData.length, collectedLocatedData[0].length).setValues(collectedLocatedData);
+        }
+        pendingLogs = [];
+        collectedLocatedData = [];
         JobManager.updateJob(i, "Cancelled by user.", true);
         JobManager.cleanupAllTriggers();
         return;
       }
       
-      // Batch write every 50 items (but not at i=0)
       if (i > currentIndex && i % 50 === 0) {
         JobManager.updateJob(i, "Finding User OUs...");
-        
-        // FLUSH LOGS
         flushLogs(logsheet, pendingLogs);
-        pendingLogs = [];
-
-        // FLUSH DATA
         if (collectedLocatedData.length > 0) {
-            const startRow = JobManager._findLastPopulatedRow(locatedSheet, 1) + 1;
-            locatedSheet.getRange(startRow, 1, collectedLocatedData.length, collectedLocatedData[0].length).setValues(collectedLocatedData);
-            SpreadsheetApp.flush(); // Force update so user sees rows appearing
-            collectedLocatedData = []; // Clear buffer after writing
+          const startRow = JobManager._findLastPopulatedRow(locatedSheet, 1) + 1;
+          locatedSheet.getRange(startRow, 1, collectedLocatedData.length, collectedLocatedData[0].length).setValues(collectedLocatedData);
         }
+        pendingLogs = [];
+        collectedLocatedData = [];
       }
       
-      // SHORT RUN CHECK / TIMEOUT CHECK
       if (isShortRun && i >= currentIndex + 50) {
          break; 
       } else if (!isShortRun && Date.now() - startTime > FIND_OU_MAX_RUNTIME_MS) {
@@ -133,7 +144,6 @@ function processFindUserOUsBatch(arg) {
       let rowData = deviceList[i];
       let deviceId = rowData[0];
       
-      // Skip rows with no Device ID content
       if (!deviceId || deviceId.toString().trim() === "") {
         continue;
       }
@@ -141,19 +151,19 @@ function processFindUserOUsBatch(arg) {
       let serno = rowData[1];
       let location = rowData[3].toString();
       let note = rowData[6].toString();
-      let userInfo = rowData[7]; // Most Recent User (email) 
+      let userInfo = rowData[7]; 
       
       try {              
         if (!userInfo || userInfo.toString().trim() === "" || !isValidEmail_(userInfo)) {
-           // Skip if user info is missing or invalid
            collectedLocatedData.push([deviceId, serno, "Error: Invalid User Email", "", "", "", ""]); 
            pendingLogs.push([new Date(), userEmail, serno, `FAILED FIND OU - Invalid or missing user email: ${userInfo}`]);
         } else {
             let userData = AdminDirectory.Users.get(userInfo);
             let userOU = userData.orgUnitPath;
-            let asset = userData.name.fullName; // Assuming asset can be full name
+            let asset = userData.name.fullName; 
             
             collectedLocatedData.push([deviceId, serno, userOU, location, asset, userInfo, note]); 
+            pendingLogs.push([new Date(), userEmail, serno, `Located User OU: ${userOU}`]);
         }
       } catch (err) {
           collectedLocatedData.push([deviceId, serno, "Error: " + err.message, "", "", "", ""]); 
@@ -161,13 +171,13 @@ function processFindUserOUsBatch(arg) {
       }
     }
 
-    // Write any remaining collected data
     flushLogs(logsheet, pendingLogs);
     if (collectedLocatedData.length > 0) {
       const startRow = JobManager._findLastPopulatedRow(locatedSheet, 1) + 1;
       locatedSheet.getRange(startRow, 1, collectedLocatedData.length, collectedLocatedData[0].length).setValues(collectedLocatedData);
-      SpreadsheetApp.flush();
     }
+    pendingLogs = [];
+    collectedLocatedData = [];
 
     if (i < deviceList.length) {
         JobManager.updateJob(i, "Rescheduling process...", false);
@@ -183,6 +193,12 @@ function processFindUserOUsBatch(arg) {
 
   } catch (e) {
     flushLogs(logsheet, pendingLogs);
+    if (collectedLocatedData.length > 0) {
+      const startRow = JobManager._findLastPopulatedRow(locatedSheet, 1) + 1;
+      locatedSheet.getRange(startRow, 1, collectedLocatedData.length, collectedLocatedData[0].length).setValues(collectedLocatedData);
+    }
+    pendingLogs = [];
+    collectedLocatedData = [];
     JobManager.updateJob(currentIndex, "An unexpected error occurred: " + e.message, true, e.message);
     Logger.log(`Find User OUs failed: ${e.toString()}\n${e.stack}`);
     JobManager.cleanupAllTriggers();

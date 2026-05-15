@@ -272,6 +272,9 @@
         <button class="menu-btn" onclick="startServerFunction('deprovisionChromebookBySerial', this)">
           Deprovision by Serial (slow)
         </button>
+        <button class="menu-btn" onclick="startServerFunction('deprovisionChromebookByAssetId', this)">
+          Deprovision by Asset ID (slow)
+        </button>
       </div>
 
       <!-- CONFIRMATION / JOB START VIEW -->
@@ -383,6 +386,9 @@
         document.getElementById('closeBtn').textContent = 'Back to Menu';
         document.getElementById('closeStartBtn').textContent = 'Back';
         
+        // Reset progress UI to avoid flicker on next job
+        resetProgressUI();
+        
         // Clear server-side job status asynchronously
         google.script.run.clearJob();
 
@@ -392,6 +398,33 @@
         } else {
           showMainMenu();
         }
+      }
+      
+      function resetProgressUI() {
+        // Reset status label and color
+        const label = document.getElementById('statusLabel');
+        label.textContent = 'Initializing...';
+        label.style.color = '';
+        
+        // Reset percentage
+        document.getElementById('percentage').textContent = '0%';
+        
+        // Reset progress bar
+        const bar = document.getElementById('progressBar');
+        bar.style.width = '0%';
+        bar.classList.remove('error', 'complete');
+        
+        // Reset counts
+        document.getElementById('processedCount').textContent = '0';
+        document.getElementById('totalCount').textContent = '-';
+        
+        // Reset current action
+        document.getElementById('currentAction').textContent = 'Waiting for server...';
+        
+        // Ensure stats and progress bar are visible (in case they were hidden by indeterminate job)
+        document.querySelectorAll('.stats').forEach(el => el.style.display = 'flex');
+        const pc = document.querySelector('.progress-container');
+        if (pc) pc.style.display = 'block';
       }
       
       function resetButtons() {
@@ -419,7 +452,8 @@
           'clearProfiles': 'getClearProfilesConfig',
           'powerWash': 'getPowerWashConfig',
           'deprovisionChromebook': 'getDeprovisionChromebookConfig',
-          'deprovisionChromebookBySerial': 'getDeprovisionBySerialConfig'
+          'deprovisionChromebookBySerial': 'getDeprovisionBySerialConfig',
+          'deprovisionChromebookByAssetId': 'getDeprovisionByAssetIdConfig'
         };
         
         // Loading State
@@ -525,6 +559,9 @@
         hideAllViews();
         document.getElementById('progressScreen').classList.remove('hidden');
         
+        // Reset process UI to ensure clean state
+        resetProgressUI();
+        
         // Reset process buttons
         document.getElementById('cancelBtn').classList.remove('hidden');
         document.getElementById('cancelBtn').disabled = false;
@@ -590,7 +627,11 @@
       }
 
       function updateUI(status) {
-        if (!status) return;
+        if (!status) {
+          // If no status, ensure UI is in neutral state
+          resetProgressUI();
+          return;
+        }
 
         document.getElementById('statusLabel').innerHTML = status.isActive ? '<div class="spinner"></div> Running' : (status.error ? 'Error' : 'Completed');
         document.getElementById('currentAction').textContent = status.message || '';
@@ -598,6 +639,7 @@
         
         const statsElements = document.querySelectorAll('.stats');
         const progressContainer = document.querySelector('.progress-container');
+        const bar = document.getElementById('progressBar');
 
         if (status.totalCount > 0) {
            statsElements.forEach(el => el.style.display = 'flex');
@@ -610,7 +652,7 @@
             let total = status.totalCount;
             let current = status.processedCount || 0;
             let percent = Math.min(100, Math.round((current / total) * 100));
-            document.getElementById('progressBar').style.width = percent + '%';
+            bar.style.width = percent + '%';
             document.getElementById('percentage').textContent = percent + '%';
         } else {
            statsElements.forEach(el => el.style.display = 'none');
@@ -623,6 +665,10 @@
           document.getElementById('cancelBtn').classList.remove('hidden');
           document.getElementById('cancelBtn').disabled = false;
           document.getElementById('closeBtn').classList.add('hidden');
+          
+          // Clear terminal state classes if job is active
+          bar.classList.remove('error', 'complete');
+          document.getElementById('statusLabel').style.color = '';
         }
 
         if (status.isFinished || status.error) {
@@ -630,7 +676,6 @@
           document.getElementById('cancelBtn').classList.add('hidden');
           document.getElementById('closeBtn').classList.remove('hidden');
           
-          const bar = document.getElementById('progressBar');
           if (status.error) {
              bar.classList.add('error');
              document.getElementById('statusLabel').textContent = 'Failed';
@@ -639,7 +684,7 @@
              bar.classList.add('complete');
              document.getElementById('statusLabel').textContent = 'Finished';
              document.getElementById('statusLabel').style.color = '#34a853';
-             document.getElementById('progressBar').style.width = '100%';
+             bar.style.width = '100%';
              if (status.totalCount > 0) {
                  document.getElementById('percentage').textContent = '100%';
              }

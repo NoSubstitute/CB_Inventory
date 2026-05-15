@@ -209,6 +209,7 @@ var JobManager = {
       'processPowerWashBatch',
       'processDeprovisionBatch',
       'processDeprovisionBySerialBatch',
+      'processDeprovisionByAssetIdBatch',
       'processMoveBatch',
       'processFindUserOUsBatch',
       'processExportBatch',

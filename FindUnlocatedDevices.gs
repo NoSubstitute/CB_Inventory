@@ -10,7 +10,6 @@ function findUnlocatedDevices() {
   
   JobManager.showJobSidebar(config);
 }
-
 function getFindUnlocatedDevicesConfig() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const devicesSheet = ss.getSheetByName("Devices");
@@ -26,7 +25,8 @@ function getFindUnlocatedDevicesConfig() {
   // We can't easily know total unlocated count without scanning, 
   // so we'll just show "Processing..." with unknown total or use total devices as proxy.
   // Using total devices (rows) as a rough progress indicator.
-  const totalCount = devicesSheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(devicesSheet, 1);
+  const totalCount = lastRow - 1;
 
   JobManager.clearJob();
 
@@ -39,25 +39,27 @@ function getFindUnlocatedDevicesConfig() {
 
 function runFindUnlocatedDevicesJob() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const devicesSheet = ss.getSheetByName("Devices");
+  const sheet = ss.getSheetByName("Devices");
   const dislocatedSheet = ss.getSheetByName("Dislocated");
 
   JobManager.cleanupAllTriggers();
 
   // Clear 'Dislocated' sheet starting from row 2 before starting
-  const lastRow = dislocatedSheet.getLastRow();
-  if (lastRow > 1) {
-    dislocatedSheet.getRange(2, 1, lastRow - 1, 8).clearContent();
+  const lastDislocatedRow = dislocatedSheet.getLastRow();
+  if (lastDislocatedRow > 1) {
+    dislocatedSheet.getRange(2, 1, lastDislocatedRow - 1, 8).clearContent();
   }
 
-  const totalCount = devicesSheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  const totalCount = lastRow - 1;
+
   JobManager.initJob('Find Unlocated Devices', totalCount);
 
   processFindUnlocatedDevicesBatch(true);
 }
 
-function processFindUnlocatedDevicesBatch(arg) {
-  const isShortRun = (arg === true);
+
+function processFindUnlocatedDevicesBatch(arg) {  const isShortRun = (arg === true);
   const startTime = Date.now();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -86,10 +88,17 @@ function processFindUnlocatedDevicesBatch(arg) {
 
   let currentIndex = status.processedCount;
   
+  const lastRow = JobManager._findLastPopulatedRow(devicesSheet, 1);
+  if (lastRow < 2) {
+    JobManager.updateJob(0, "No data found.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
   // Optimization: Read in chunks if possible, but reading whole sheet is usually okay for <100k rows
   // To stick to batch pattern and avoid memory issues, let's read in chunks.
   const BATCH_SIZE = 5000;
-  const totalRows = devicesSheet.getLastRow() - 1;
+  const totalRows = lastRow - 1;
   
   // Calculate start row (index 0 is header in sheet, so data starts at row 2)
   // currentIndex is number of *processed* rows.

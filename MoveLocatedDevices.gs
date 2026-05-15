@@ -18,16 +18,21 @@ function getMoveLocatedDevicesConfig() {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = spreadsheet.getSheetByName("Located");
-    
-    if (!sheet || sheet.getLastRow() < 2) {
+
+    if (!sheet) {
+      return { error: 'Sheet "Located" not found.' };
+    }
+
+    const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+    if (lastRow < 2) {
       return { error: 'No devices listed in "Located" sheet.' };
     }
 
-    const totalCount = sheet.getLastRow() - 1;
+    const totalCount = lastRow - 1;
 
     // Force cold start: Clear any previous job state
     JobManager.clearJob();
-    
+
     return {
       title: 'Move Devices',
       itemCount: totalCount,
@@ -45,17 +50,16 @@ function startMoveProcess() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName("Located");
   
-  // Cleanup any old triggers
   JobManager.cleanupAllTriggers();
   
-  const totalCount = sheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  const totalCount = lastRow - 1;
 
-  // Initialize the job state using JobManager
   JobManager.initJob('Move Devices', totalCount);
   
-  // Run a short batch IMMEDIATELY to give instant feedback.
   processMoveBatch(true);
 }
+
 
 // =========================================================================================
 // == Core processing function, run by triggers (and initially by startMoveProcess)
@@ -96,17 +100,26 @@ function processMoveBatch(arg) {
   
   let currentIndex = status.processedCount;
 
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  if (lastRow < 2) {
+    JobManager.updateJob(0, "No data found.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
   // Load the full list of devices
   // Columns A-G (7 columns): DeviceID, Serno, OU, Location, Asset, User, Note
-  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  const deviceList = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
 
   let pendingLogs = [];
+  let i = currentIndex;
 
   try {
-    for (var i = currentIndex; i < deviceList.length; i++) {
+    for (; i < deviceList.length; i++) {
       // Check Cancellation
       if (JobManager.isJobCancelled()) {
         flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
         JobManager.updateJob(i, "Move cancelled by user.", true);
         JobManager.cleanupAllTriggers();
         return;
@@ -164,6 +177,7 @@ function processMoveBatch(arg) {
     }
 
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
 
     if (i < deviceList.length) {
         JobManager.updateJob(i, "Rescheduling process...", false);
@@ -179,6 +193,7 @@ function processMoveBatch(arg) {
 
   } catch (e) {
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
     JobManager.updateJob(currentIndex, "An unexpected error occurred: " + e.message, true, e.message);
     Logger.log(`Move process failed: ${e.toString()}\n${e.stack}`);
     JobManager.cleanupAllTriggers();

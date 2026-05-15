@@ -18,11 +18,16 @@ function getDisableChromebookConfig() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName("UpdateCBs");
   
-  if (!sheet || sheet.getLastRow() < 2) {
+  if (!sheet) {
+    return { error: 'Sheet "UpdateCBs" not found.' };
+  }
+
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  if (lastRow < 2) {
     return { error: 'No devices listed in "UpdateCBs" sheet.' };
   }
 
-  const totalCount = sheet.getLastRow() - 1;
+  const totalCount = lastRow - 1;
 
   JobManager.clearJob();
   
@@ -42,7 +47,8 @@ function runDisableJob() {
   
   JobManager.cleanupAllTriggers();
   
-  const totalCount = sheet.getLastRow() - 1;
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  const totalCount = lastRow - 1;
 
   JobManager.initJob('Disable Devices', totalCount);
   
@@ -84,15 +90,24 @@ function processDisableBatch(arg) {
   
   let currentIndex = status.processedCount;
 
+  const lastRow = JobManager._findLastPopulatedRow(sheet, 1);
+  if (lastRow < 2) {
+    JobManager.updateJob(0, "No data found.", true);
+    JobManager.cleanupAllTriggers();
+    return;
+  }
+
   // Load list. Cols: A(0)=ID, B(1)=Serial
-  const deviceList = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+  const deviceList = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
 
   let pendingLogs = [];
+  let i = currentIndex;
 
   try {
-    for (var i = currentIndex; i < deviceList.length; i++) {
+    for (; i < deviceList.length; i++) {
       if (JobManager.isJobCancelled()) {
         flushLogs(logsheet, pendingLogs);
+        pendingLogs = [];
         JobManager.updateJob(i, "Cancelled by user.", true);
         JobManager.cleanupAllTriggers();
         return;
@@ -152,6 +167,7 @@ function processDisableBatch(arg) {
     }
 
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
 
     if (i < deviceList.length) {
         JobManager.updateJob(i, "Rescheduling process...", false);
@@ -167,6 +183,7 @@ function processDisableBatch(arg) {
 
   } catch (e) {
     flushLogs(logsheet, pendingLogs);
+    pendingLogs = [];
     JobManager.updateJob(currentIndex, "Error: " + e.message, true, e.message);
     Logger.log(`Disable failed: ${e.toString()}\n${e.stack}`);
     JobManager.cleanupAllTriggers();
