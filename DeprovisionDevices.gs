@@ -401,23 +401,25 @@ function processDeprovisionBySerialBatch(arg) {
  */
 function getDeviceIdBySerialNumber(serialNumber) {
   if (!serialNumber) return null;
+  const normalizedSerial = serialNumber.toString().trim().toUpperCase();
+  if (!normalizedSerial) return null;
   
   try {
     const response = AdminDirectory.Chromeosdevices.list('my_customer', {
-      query: `id:${serialNumber}`,
+      query: `id:${normalizedSerial}`,
       projection: 'BASIC'
     });
     
     if (response.chromeosdevices && response.chromeosdevices.length > 0) {
       // The API query might return partial matches, so we must verify exact match
       for (const device of response.chromeosdevices) {
-        if (device.serialNumber === serialNumber) {
+        if (device.serialNumber && device.serialNumber.toUpperCase() === normalizedSerial) {
           return device.deviceId;
         }
       }
     }
   } catch (e) {
-    console.error(`Error looking up serial number ${serialNumber}: ${e.message}`);
+    console.error(`Error looking up serial number ${normalizedSerial}: ${e.message}`);
   }
   
   return null;
@@ -430,23 +432,25 @@ function getDeviceIdBySerialNumber(serialNumber) {
  */
 function getDeviceIdByAssetId(assetId) {
   if (!assetId) return null;
+  const normalizedAssetId = assetId.toString().trim();
+  if (!normalizedAssetId) return null;
   
   try {
     const response = AdminDirectory.Chromeosdevices.list('my_customer', {
-      query: `asset_id:${assetId}`,
+      query: `asset_id:${normalizedAssetId}`,
       projection: 'FULL'
     });
     
     if (response.chromeosdevices && response.chromeosdevices.length > 0) {
       // The API query might return partial matches, so we must verify exact match
       for (const device of response.chromeosdevices) {
-        if (device.annotatedAssetId === assetId) {
+        if (device.annotatedAssetId === normalizedAssetId) {
           return device.deviceId;
         }
       }
     }
   } catch (e) {
-    console.error(`Error looking up Asset ID ${assetId}: ${e.message}`);
+    console.error(`Error looking up Asset ID ${normalizedAssetId}: ${e.message}`);
   }
   
   return null;

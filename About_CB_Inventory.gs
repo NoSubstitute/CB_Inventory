@@ -9,6 +9,7 @@ If you ever need to reach me, I'm available everywhere:
 https://wheretofind.me/@NoSubstitute
 
 === Changelog ===
+2026-08-27.01: Fixed serial number lookup to be case-insensitive by normalizing inputs and results to uppercase. Utilized exact-match verification against Admin SDK query results (id, asset_id) to ensure accurate device identification and prevent partial-match errors during deprovisioning.
 2026-05-15.03: Refined deprovisioning flows to strictly log the intended identifier (Device ID, Serial Number, or Asset ID) and gracefully skip invalid rows.
 2026-05-15.02: Fixed JobManager sidebar UI flicker by immediately resetting progress elements when switching jobs. Corrected loop variable scoping across all batch processes to prevent double-logging errors.
 2026-05-15.01: Improved batch job accuracy by updating all configuration and processing functions to strictly count and load data based on the last populated row of the primary identifier column, ignoring empty formatted rows.
